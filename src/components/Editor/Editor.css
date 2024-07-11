@@ -1,0 +1,9 @@
+.editor {
+  height: 100%;
+
+  padding: 2rem;
+}
+
+.selected {
+  background-color: blue;
+}
