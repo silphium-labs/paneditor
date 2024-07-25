@@ -9,9 +9,11 @@
   },
   "dependencies": {
     "@iter-tools/imm-stack": "1.1.0",
-    "@bablr/language-json": "0.3.6",
-    "@reduxjs/toolkit": "2.2.6",
-    "bablr": "0.2.1",
+    "@bablr/agast-helpers": "0.2.0",
+    "@bablr/helpers": "0.17.0",
+    "@bablr/language-en-json": "0.4.0",
+    "bablr": "0.3.0",
+    "classnames": "2.5.1",
     "iter-tools-es": "7.5.3",
     "solid-js": "1.8.18"
   },

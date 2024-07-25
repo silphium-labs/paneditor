@@ -1,3 +1,11 @@
+.title {
+  display: inline-block;
+  padding: 0 0.3em;
+  font-weight: bold;
+  font-size: 1.2em;
+  background-color: blue;
+}
+
 .context-pane {
   padding: 2rem;
 }

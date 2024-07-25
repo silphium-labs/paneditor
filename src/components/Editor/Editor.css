@@ -1,9 +1,42 @@
 .editor {
-  height: 100%;
-
   padding: 2rem;
+  cursor: default;
+  /* user-select: none; */
 }
 
-.selected {
+.selected .token:not(.trivia),
+.selected.token:not(.trivia) {
+  background-color: darkblue;
+}
+
+.dragging {
+  color: lightgrey !important;
+  background-color: lightgrey !important;
+}
+
+.selected .token:not(.trivia):not([contenteditable]),
+.selected.token:not(.trivia):not([contenteditable]) {
   background-color: blue;
+}
+
+.token[contenteditable='true'] {
+  outline: blue solid 2px;
+  border-radius: 0.3em;
+  cursor: text;
+}
+
+.gap {
+  padding: 0 5px;
+  box-sizing: border-box;
+  border: 2px solid transparent;
+  background: lightgrey;
+}
+
+.selected .gap,
+.selected.gap {
+  border: 2px solid blue;
+}
+
+#dragShadow {
+  position: absolute;
 }
