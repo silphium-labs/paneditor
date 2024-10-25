@@ -9,10 +9,11 @@
   },
   "dependencies": {
     "@iter-tools/imm-stack": "1.1.0",
-    "@bablr/agast-helpers": "0.2.0",
-    "@bablr/helpers": "0.17.0",
-    "@bablr/language-en-json": "0.4.0",
-    "bablr": "0.3.0",
+    "@bablr/agast-helpers": "^0.5.0",
+    "@bablr/agast-vm-helpers": "^0.5.0",
+    "@bablr/helpers": "^0.20.0",
+    "@bablr/language-en-json": "0.5.1",
+    "bablr": "0.6.0",
     "classnames": "2.5.1",
     "iter-tools-es": "7.5.3",
     "solid-js": "1.8.18"

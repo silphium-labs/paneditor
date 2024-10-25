@@ -1,32 +1,49 @@
 import { createSignal, createMemo } from 'solid-js';
-import { AgastContext } from 'bablr';
+import { AgastContext, Context as BABLRContext } from 'bablr';
+import * as language from '@bablr/language-en-json';
 import Editor from '../Editor/Editor.jsx';
 import ContextPane from '../ContextPane/ContextPane.jsx';
 import {
   SelectionContext,
-  AgastContext as AgastSolidContext,
+  BABLRContext as BABLRSolidContext,
   SumContext,
+  nodeBindings,
 } from '../../state/store.js';
 
 import './Environment.css';
 
-const getCommonParent = (a, b) => {
-  let a_ = a;
-  let b_ = b;
+const getPath = (node) => {
+  let node_ = node;
+  let path = [];
 
-  while ((a_.depth || b_.depth) && a_ !== b_) {
-    if (a_.depth > b_.depth) {
-      a_ = a_.parent;
+  while (node_) {
+    path.push(node_);
+    node_ = nodeBindings.get(nodeBindings.get(node_).parentNode);
+  }
+
+  return path.reverse();
+};
+
+const getCommonParent = (a, b) => {
+  const aPath = getPath(a);
+  const bPath = getPath(b);
+  let aIdx = aPath.length - 1;
+  let bIdx = bPath.length - 1;
+
+  while ((aIdx || bIdx) && aPath[aIdx] !== bPath[bIdx]) {
+    if (aIdx > bIdx) {
+      aIdx--;
     } else {
-      b_ = b_.parent;
+      bIdx--;
     }
   }
 
-  return a_ === b_ ? a_ : null;
+  return aPath[aIdx] === bPath[bIdx] ? aPath[aIdx] : null;
 };
 
 function Environment() {
   const agastContext = AgastContext.create();
+  const bablrContext = BABLRContext.from(agastContext, language);
   const [selectedRange, setSelectedRange] = createSignal([null, null]);
 
   const selectionRoot = createMemo(() => {
@@ -34,21 +51,12 @@ function Environment() {
 
     if (!range[0] || !range[1]) return null;
 
-    const getPath = (terminal) => {
-      let path = agastContext.pathForTag(terminal);
-      let node = agastContext.nodeForTag(terminal);
-      if (node?.flags.intrinsic) {
-        return path.parent;
-      }
-      return path;
-    };
-
-    return getCommonParent(getPath(range[0]), getPath(range[1]));
+    return range[0] === range[1] ? range[0] : getCommonParent(range[0], range[1]);
   });
 
   return (
     <>
-      <AgastSolidContext.Provider value={agastContext}>
+      <BABLRSolidContext.Provider value={bablrContext}>
         <SumContext.Provider>
           <SelectionContext.Provider value={{ selectionRoot, selectedRange, setSelectedRange }}>
             <div class="environment">
@@ -57,7 +65,7 @@ function Environment() {
             </div>
           </SelectionContext.Provider>
         </SumContext.Provider>
-      </AgastSolidContext.Provider>
+      </BABLRSolidContext.Provider>
     </>
   );
 }

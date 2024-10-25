@@ -1,28 +1,26 @@
 import { useContext, Show } from 'solid-js';
-import { printExpression } from '@bablr/agast-helpers/print';
-import { AgastContext, SelectionContext, SumContext } from '../../state/store.js';
+import { BABLRContext, SelectionContext, SumContext, nodeBindings } from '../../state/store.js';
 
 import './ContextPane.css';
+import { printType } from '@bablr/agast-helpers/print';
 
 function ContextPane() {
-  const agastContext = useContext(AgastContext);
+  const bablrContext = useContext(BABLRContext);
+  const agastContext = bablrContext.agast;
   const { selectionRoot } = useContext(SelectionContext);
   const { widths } = useContext(SumContext);
 
-  const isGap = () =>
-    selectionRoot() && agastContext.getNextTerminal(selectionRoot().reference)?.type === 'Gap';
-
-  const node = () => agastContext.nodeForPath(selectionRoot());
+  const isGap = () => selectionRoot() && selectionRoot().type === Symbol.for('@bablr/gap');
 
   const flags = () => {
-    const { token, trivia, escape, intrinsic, expression } = node().flags;
+    const { token, trivia, escape, expression, hasGap } = selectionRoot().flags;
     return (
       <>
         <Show when={trivia}>#</Show>
-        <Show when={intrinsic}>~</Show>
         <Show when={token}>*</Show>
         <Show when={escape}>@</Show>
         <Show when={expression}>+</Show>
+        <Show when={hasGap}>$</Show>
       </>
     );
   };
@@ -32,16 +30,16 @@ function ContextPane() {
       <div class="context-pane">
         <Show when={selectionRoot() && !isGap()}>
           <div class="property-name">
-            {() => `${selectionRoot().name}${selectionRoot().isArray ? '[]' : ''}`}:
+            {() => selectionRoot() && nodeBindings.get(selectionRoot()).dataset.path}:
           </div>
           <div class="title">
             {'<'}
             {flags}
-            {() => node()?.type}
+            {() => printType(selectionRoot()?.type)}
             {'>'}
           </div>
           <br />
-          <div>width: {() => widths.get(node())}</div>
+          <div>width: {() => widths.get(selectionRoot())}</div>
         </Show>
         <Show when={isGap()}>
           <div class="property-name">
@@ -49,7 +47,7 @@ function ContextPane() {
           </div>
           <div class="title">{'<//>'}</div>
           <br />
-          <div>width: 0</div>
+          <div>width: {() => widths.get(selectionRoot())}</div>
         </Show>
       </div>
     </>
