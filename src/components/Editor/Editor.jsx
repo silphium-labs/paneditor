@@ -3,18 +3,27 @@
 import emptyStack from '@iter-tools/imm-stack';
 import joinWith from 'iter-tools-es/methods/join-with';
 import find from 'iter-tools-es/methods/find';
-import { createEffect, useContext } from 'solid-js';
+import { createEffect, useContext, untrack } from 'solid-js';
 import { streamParse } from 'bablr';
 import * as language from '@bablr/language-en-json';
 import classNames from 'classnames';
 import {
   SelectionContext,
+  DocumentContext,
   BABLRContext,
   StoreContext,
   SumContext,
   nodeBindings,
 } from '../../state/store.js';
-import { printReferenceTag, streamFromTree, traverseProperties } from '@bablr/agast-helpers/tree';
+import {
+  get,
+  set,
+  buildGapNode,
+  printReferenceTag,
+  streamFromTree,
+  traverseProperties,
+} from '@bablr/agast-helpers/tree';
+import { PathResolver } from '@bablr/agast-helpers/path';
 import * as btree from '@bablr/agast-helpers/btree';
 import {
   ReferenceTag,
@@ -24,13 +33,18 @@ import {
   CloseFragmentTag,
   LiteralTag,
   NullTag,
-  ArrayTag,
+  ArrayInitializerTag,
   GapTag,
-  node,
 } from '@bablr/agast-helpers/symbols';
 import { buildFullyQualifiedSpamMatcher } from '@bablr/agast-vm-helpers/builders';
 
 import './Editor.css';
+import { generateSourceTextFor, stringFromStream } from '@bablr/agast-helpers/stream';
+import {
+  embeddedSourceFrom,
+  printEmbeddedSource,
+  sourceFromTokenStream,
+} from '@bablr/helpers/source';
 
 function* ancestors(node) {
   let parent = node;
@@ -40,27 +54,71 @@ function* ancestors(node) {
   }
 }
 
+const { isArray } = Array;
+
 const computeStartPos = (node, widths) => {};
 
-const buildChangeTemplate = (agastContext, rootPathNode) => {
+const buildChangeTemplate = (agastContext, changedPath, newValue) => {
   let expressions = [];
 
-  for (const pathNode of [...ancestors(rootPathNode)].reverse()) {
-    let node = nodeBindings.get(pathNode);
+  let ancestors_ = [...ancestors(changedPath)].reverse();
+  let diffNodes = ancestors_.map((node) => ({
+    ...nodeBindings.get(node),
+    properties: {},
+  }));
 
-    debugger;
-  }
+  const changedNode = nodeBindings.get(changedPath);
 
-  return { source: streamFromTree(node), expressions };
-};
+  let i = 0;
+  let node = nodeBindings.get(ancestors_[0]);
+  let resolver = new PathResolver();
 
-const get = (node, path) => {
-  const { 1: name, 2: index } = /^([^\.]+)(?:\.(\d+))?/.exec(path) || [];
+  let stack = []; // { node, i, resolver }
 
-  if (index != null) {
-    return btree.getAt(parseInt(index, 10), node.properties[name]);
-  } else {
-    return node.properties[name];
+  stack: for (;;) {
+    let depth = stack.length;
+    let diffNode = diffNodes[depth];
+    let deeperNode = nodeBindings.get(ancestors_[depth + 1]);
+    let deeperDiffNode = diffNodes[depth + 1];
+
+    // use btree.getAt(idx) with a stack so that expressions are correct
+    for (; i < btree.getSum(node.children); i++) {
+      const child = btree.getAt(i, node.children);
+      if (child.type === ReferenceTag) {
+        const resolvedPath = resolver.advance(child);
+        const childNode = get(node, resolvedPath);
+
+        if (isArray(childNode)) continue;
+
+        const path = nodeBindings.get(childNode);
+        if (childNode === changedNode) {
+          set(diffNode, resolvedPath, newValue);
+        } else if (childNode === deeperNode) {
+          set(diffNode, resolvedPath, deeperDiffNode);
+
+          stack.push({ node, i: i + 1, resolver });
+
+          node = childNode;
+          i = 0;
+          resolver = new PathResolver();
+          continue stack;
+        } else {
+          if (path.dataset.path.endsWith('$')) {
+            set(diffNode, resolvedPath, buildGapNode());
+            expressions.push(childNode);
+          } else {
+            set(diffNode, resolvedPath, childNode);
+          }
+        }
+      }
+    }
+
+    if (stack.length) {
+      ({ node, i, resolver } = stack[stack.length - 1]);
+      stack.pop();
+    } else {
+      return { source: sourceFromTokenStream(streamFromTree(diffNodes[0])), expressions };
+    }
   }
 };
 
@@ -98,6 +156,7 @@ const reduceNode = (node, reducer, initialValue) => {
 
 function Editor() {
   const { selectionRoot, selectedRange, setSelectedRange } = useContext(SelectionContext);
+  const { document, setDocument } = useContext(DocumentContext);
   const { store, setStore } = useContext(StoreContext);
   const { widths } = useContext(SumContext);
   const bablrContext = useContext(BABLRContext);
@@ -116,14 +175,9 @@ function Editor() {
   );
 
   const madness = () => {
+    const { expressions } = document();
     const tags_ = [
-      ...streamParse(
-        bablrContext,
-        matcher,
-        store.document.source,
-        {},
-        { agastContext, expressions: store.document.expressions },
-      ),
+      ...streamParse(bablrContext, matcher, document().source, {}, { agastContext, expressions }),
     ];
 
     const tags = [...tags_];
@@ -146,12 +200,12 @@ function Editor() {
       }
 
       if (tag.type === OpenNodeTag) {
-        let ref = agastContext.getPreviousTag(tag);
+        let ref = agastContext.getPreviousTagPath(tag);
         const node = agastContext.nodeForTag(tag);
         const { type, flags } = tag.value;
 
         while (ref && ref.type !== ReferenceTag) {
-          ref = agastContext.getPreviousTag(ref);
+          ref = agastContext.getPreviousTagPath(ref);
         }
 
         const newFrame = {
@@ -181,14 +235,19 @@ function Editor() {
         });
       }
 
-      if (tag.type === NullTag || tag.type === ArrayTag) {
+      if (tag.type === NullTag || tag.type === ArrayInitializerTag) {
         stack = stack.pop();
       }
 
       if (tag.type === GapTag) {
-        const ownNode = agastContext.nodeForTag(tag);
+        const { 0: ownNode } = [agastContext.nodeForTag(tag)];
+        const reference = agastContext.getPreviousTagPath(tag);
+
         const span = (
-          <span class={classNames({ gap: true, selected: selectionRoot() === ownNode })}>
+          <span
+            class={classNames({ gap: true, selected: selectionRoot() === ownNode })}
+            data-path={printReferenceTag(reference).slice(0, -1)}
+          >
             &nbsp;
           </span>
         );
@@ -215,7 +274,7 @@ function Editor() {
 
         const { flags } = doneFrame.node;
 
-        const reference = agastContext.getPreviousTag(btree.getAt(0, doneFrame.node.children));
+        const reference = agastContext.getPreviousTagPath(btree.getAt(0, doneFrame.node.children));
 
         const referenceAttributes = !(flags.trivia || flags.escape)
           ? {
@@ -450,7 +509,7 @@ function Editor() {
           if (tokenNode?.type === Symbol.for('@bablr/gap')) {
             const { dragTarget } = store;
 
-            setStore('document', buildChangeTemplate(agastContext, e.target));
+            setDocument(buildChangeTemplate(agastContext, e.target, nodeBindings.get(dragTarget)));
 
             dragTarget.parentNode.removeChild(dragTarget);
 

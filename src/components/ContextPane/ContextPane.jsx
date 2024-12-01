@@ -2,7 +2,7 @@ import { useContext, Show } from 'solid-js';
 import { BABLRContext, SelectionContext, SumContext, nodeBindings } from '../../state/store.js';
 
 import './ContextPane.css';
-import { printType } from '@bablr/agast-helpers/print';
+import { printAttributes, printType } from '@bablr/agast-helpers/print';
 
 function ContextPane() {
   const bablrContext = useContext(BABLRContext);
@@ -36,14 +36,17 @@ function ContextPane() {
             {'<'}
             {flags}
             {() => printType(selectionRoot()?.type)}
-            {'>'}
+            {() =>
+              selectionRoot()?.attributes ? ' ' + printAttributes(selectionRoot()?.attributes) : ''
+            }
+            {' />'}
           </div>
           <br />
           <div>width: {() => widths.get(selectionRoot())}</div>
         </Show>
         <Show when={isGap()}>
           <div class="property-name">
-            {() => `${selectionRoot().name}${selectionRoot().isArray ? '[]' : ''}`}:
+            {() => selectionRoot() && nodeBindings.get(selectionRoot()).dataset.path}:
           </div>
           <div class="title">{'<//>'}</div>
           <br />
