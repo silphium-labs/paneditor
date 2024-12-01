@@ -5,12 +5,14 @@ import Editor from '../Editor/Editor.jsx';
 import ContextPane from '../ContextPane/ContextPane.jsx';
 import {
   SelectionContext,
+  DocumentContext,
   BABLRContext as BABLRSolidContext,
   SumContext,
   nodeBindings,
 } from '../../state/store.js';
 
 import './Environment.css';
+import { embeddedSourceFrom } from '@bablr/helpers/source';
 
 const getPath = (node) => {
   let node_ = node;
@@ -41,10 +43,19 @@ const getCommonParent = (a, b) => {
   return aPath[aIdx] === bPath[bIdx] ? aPath[aIdx] : null;
 };
 
+const defaultDocument = {
+  source: embeddedSourceFrom(
+    `'[\n  1, 2, -33,\n  444, {\n    "num": 5555,\n    "str": "hello world",\n    "gap": '<//>'\n  }\n]'`,
+    // `'[]'`,
+  ),
+  expressions: [],
+};
+
 function Environment() {
   const agastContext = AgastContext.create();
   const bablrContext = BABLRContext.from(agastContext, language);
   const [selectedRange, setSelectedRange] = createSignal([null, null]);
+  const [document, setDocument] = createSignal(defaultDocument);
 
   const selectionRoot = createMemo(() => {
     const range = selectedRange();
@@ -58,12 +69,14 @@ function Environment() {
     <>
       <BABLRSolidContext.Provider value={bablrContext}>
         <SumContext.Provider>
-          <SelectionContext.Provider value={{ selectionRoot, selectedRange, setSelectedRange }}>
-            <div class="environment">
-              <Editor />
-              <ContextPane />
-            </div>
-          </SelectionContext.Provider>
+          <DocumentContext.Provider value={{ document, setDocument }}>
+            <SelectionContext.Provider value={{ selectionRoot, selectedRange, setSelectedRange }}>
+              <div class="environment">
+                <Editor />
+                <ContextPane />
+              </div>
+            </SelectionContext.Provider>
+          </DocumentContext.Provider>
         </SumContext.Provider>
       </BABLRSolidContext.Provider>
     </>
