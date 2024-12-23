@@ -1,5 +1,5 @@
 import { createSignal, createMemo } from 'solid-js';
-import { AgastContext, Context as BABLRContext } from 'bablr';
+import { Context as BABLRContext } from 'bablr';
 import * as language from '@bablr/language-en-json';
 import Editor from '../Editor/Editor.jsx';
 import ContextPane from '../ContextPane/ContextPane.jsx';
@@ -52,8 +52,7 @@ const defaultDocument = {
 };
 
 function Environment() {
-  const agastContext = AgastContext.create();
-  const bablrContext = BABLRContext.from(agastContext, language);
+  const bablrContext = BABLRContext.from(language);
   const [selectedRange, setSelectedRange] = createSignal([null, null]);
   const [document, setDocument] = createSignal(defaultDocument);
 
