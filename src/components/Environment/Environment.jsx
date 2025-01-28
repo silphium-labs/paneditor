@@ -1,6 +1,6 @@
 import { createSignal, createMemo } from 'solid-js';
 import { Context as BABLRContext } from 'bablr';
-import * as language from '@bablr/language-en-json';
+import * as language from '@bablr/language-en-cstml-json';
 import Editor from '../Editor/Editor.jsx';
 import ContextPane from '../ContextPane/ContextPane.jsx';
 import {

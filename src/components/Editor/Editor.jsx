@@ -5,8 +5,10 @@ import joinWith from 'iter-tools-es/methods/join-with';
 import find from 'iter-tools-es/methods/find';
 import { createEffect, useContext, untrack } from 'solid-js';
 import { streamParse } from 'bablr';
-import * as language from '@bablr/language-en-json';
+import { spam } from '@bablr/boot';
+import * as language from '@bablr/language-en-cstml-json';
 import classNames from 'classnames';
+import { evaluateIO } from '@bablr/io-vm-web';
 import {
   SelectionContext,
   DocumentContext,
@@ -17,11 +19,11 @@ import {
 } from '../../state/store.js';
 import {
   get,
-  set,
-  buildGapNode,
+  buildStubNode,
   printReferenceTag,
   streamFromTree,
   traverseProperties,
+  buildGapTag,
 } from '@bablr/agast-helpers/tree';
 import { PathResolver } from '@bablr/agast-helpers/path';
 import * as btree from '@bablr/agast-helpers/btree';
@@ -36,7 +38,7 @@ import {
   ArrayInitializerTag,
   GapTag,
 } from '@bablr/agast-helpers/symbols';
-import { buildFullyQualifiedSpamMatcher } from '@bablr/agast-vm-helpers/builders';
+import { debugEnhancers } from '@bablr/helpers/enhancers';
 
 import './Editor.css';
 import { generateSourceTextFor, stringFromStream } from '@bablr/agast-helpers/stream';
@@ -45,6 +47,7 @@ import {
   printEmbeddedSource,
   sourceFromTokenStream,
 } from '@bablr/helpers/source';
+import { buildString } from '@bablr/helpers/builders';
 
 function* ancestors(node) {
   let parent = node;
@@ -104,7 +107,7 @@ const buildChangeTemplate = (agastContext, changedPath, newValue) => {
           continue stack;
         } else {
           if (path.dataset.path.endsWith('$')) {
-            set(diffNode, resolvedPath, buildGapNode());
+            set(diffNode, resolvedPath, buildStubNode(buildGapTag()));
             expressions.push(childNode);
           } else {
             set(diffNode, resolvedPath, childNode);
@@ -160,7 +163,6 @@ function Editor() {
   const { store, setStore } = useContext(StoreContext);
   const { widths } = useContext(SumContext);
   const bablrContext = useContext(BABLRContext);
-  const agastContext = bablrContext.agast;
 
   createEffect(() => {
     if (!store.editing) {
@@ -168,19 +170,22 @@ function Editor() {
     }
   });
 
-  const matcher = buildFullyQualifiedSpamMatcher(
-    { hasGap: true },
-    language.canonicalURL,
-    'Expression',
-  );
+  const matcher = spam`<$${buildString(language.canonicalURL)}:Expression />`;
 
   const madness = () => {
     const { expressions } = document();
-    const tags_ = [
-      ...streamParse(bablrContext, matcher, document().source, {}, { agastContext, expressions }),
-    ];
 
-    const tags = [...tags_];
+    const tags = [
+      ...evaluateIO(() =>
+        streamParse(
+          bablrContext,
+          matcher,
+          document().source,
+          {},
+          { expressions, emitEffects: true, enhancers: debugEnhancers },
+        ),
+      ),
+    ];
 
     return tags.reduce((stack, tag) => {
       if (tag.type === ReferenceTag) {
