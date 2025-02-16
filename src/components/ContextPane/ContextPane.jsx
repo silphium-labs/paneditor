@@ -3,6 +3,7 @@ import { BABLRContext, SelectionContext, SumContext, nodeBindings } from '../../
 
 import './ContextPane.css';
 import { printAttributes, printType } from '@bablr/agast-helpers/print';
+import { isGapNode } from '@bablr/agast-helpers/path';
 
 function ContextPane() {
   const bablrContext = useContext(BABLRContext);
@@ -10,16 +11,13 @@ function ContextPane() {
   const { selectionRoot } = useContext(SelectionContext);
   const { widths } = useContext(SumContext);
 
-  const isGap = () => selectionRoot() && selectionRoot().type === Symbol.for('@bablr/gap');
+  const isGap = () => selectionRoot() && isGapNode(selectionRoot());
 
   const flags = () => {
-    const { token, trivia, escape, expression, hasGap } = selectionRoot().flags;
+    const { token, hasGap } = selectionRoot().flags;
     return (
       <>
-        <Show when={trivia}>#</Show>
         <Show when={token}>*</Show>
-        <Show when={escape}>@</Show>
-        <Show when={expression}>+</Show>
         <Show when={hasGap}>$</Show>
       </>
     );
@@ -36,9 +34,10 @@ function ContextPane() {
             {'<'}
             {flags}
             {() => printType(selectionRoot()?.type)}
-            {() =>
-              selectionRoot()?.attributes ? ' ' + printAttributes(selectionRoot()?.attributes) : ''
-            }
+            {() => {
+              const attributes_ = printAttributes(selectionRoot()?.attributes);
+              return attributes_ ? ` ${attributes_}` : '';
+            }}
             {' />'}
           </div>
           <br />

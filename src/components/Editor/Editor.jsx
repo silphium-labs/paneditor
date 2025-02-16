@@ -3,7 +3,7 @@
 import emptyStack from '@iter-tools/imm-stack';
 import joinWith from 'iter-tools-es/methods/join-with';
 import find from 'iter-tools-es/methods/find';
-import { createEffect, useContext, untrack } from 'solid-js';
+import { createEffect, useContext } from 'solid-js';
 import { streamParse } from 'bablr';
 import { spam } from '@bablr/boot';
 import * as language from '@bablr/language-en-cstml-json';
@@ -24,15 +24,14 @@ import {
   streamFromTree,
   traverseProperties,
   buildGapTag,
+  evaluateReturnSync,
 } from '@bablr/agast-helpers/tree';
-import { PathResolver } from '@bablr/agast-helpers/path';
+import { isGapNode, isNullNode, Path, PathResolver, TagPath } from '@bablr/agast-helpers/path';
 import * as btree from '@bablr/agast-helpers/btree';
 import {
   ReferenceTag,
   OpenNodeTag,
   CloseNodeTag,
-  OpenFragmentTag,
-  CloseFragmentTag,
   LiteralTag,
   NullTag,
   ArrayInitializerTag,
@@ -41,12 +40,7 @@ import {
 import { debugEnhancers } from '@bablr/helpers/enhancers';
 
 import './Editor.css';
-import { generateSourceTextFor, stringFromStream } from '@bablr/agast-helpers/stream';
-import {
-  embeddedSourceFrom,
-  printEmbeddedSource,
-  sourceFromTokenStream,
-} from '@bablr/helpers/source';
+import { sourceFromTokenStream } from '@bablr/helpers/source';
 import { buildString } from '@bablr/helpers/builders';
 
 function* ancestors(node) {
@@ -61,7 +55,7 @@ const { isArray } = Array;
 
 const computeStartPos = (node, widths) => {};
 
-const buildChangeTemplate = (agastContext, changedPath, newValue) => {
+const buildChangeTemplate = (changedPath, newValue) => {
   let expressions = [];
 
   let ancestors_ = [...ancestors(changedPath)].reverse();
@@ -126,8 +120,8 @@ const buildChangeTemplate = (agastContext, changedPath, newValue) => {
 };
 
 export const getWidth = (node) => {
-  if (node.type === Symbol.for('@bablr/gap')) return 1;
-  if (node.type === Symbol.for('@bablr/null')) return 0;
+  if (isGapNode(node)) return 1;
+  if (isNullNode(node)) return 0;
 
   return node.flags.token
     ? [...btree.traverse(node.children)].reduce((w, tag) => {
@@ -175,8 +169,8 @@ function Editor() {
   const madness = () => {
     const { expressions } = document();
 
-    const tags = [
-      ...evaluateIO(() =>
+    const tree = evaluateReturnSync(
+      evaluateIO(() =>
         streamParse(
           bablrContext,
           matcher,
@@ -185,43 +179,36 @@ function Editor() {
           { expressions, emitEffects: true, enhancers: debugEnhancers },
         ),
       ),
-    ];
+    );
 
-    return tags.reduce((stack, tag) => {
-      if (tag.type === ReferenceTag) {
-        stack = stack.push({ type: null, node: null, fragment: null });
-      }
+    let stack = emptyStack.push({ type: null, node: null, fragment: null });
 
-      if (tag.type === OpenFragmentTag) {
-        const node = agastContext.nodeForTag(tag);
+    let tagPath = TagPath.from(Path.from(tree), 0);
 
-        const newFrame = {
-          type: null,
-          node,
-          fragment: <></>,
-        };
-
-        stack = stack.push(newFrame);
-      }
+    while (tagPath) {
+      let { tag, path } = tagPath;
 
       if (tag.type === OpenNodeTag) {
-        let ref = agastContext.getPreviousTagPath(tag);
-        const node = agastContext.nodeForTag(tag);
-        const { type, flags } = tag.value;
+        if (tag.value.type) {
+          const { node } = tagPath;
+          const { type, flags } = tag.value;
 
-        while (ref && ref.type !== ReferenceTag) {
-          ref = agastContext.getPreviousTagPath(ref);
-        }
+          const newFrame = {
+            type,
+            node,
+            fragment: <></>,
+          };
 
-        const newFrame = {
-          type,
-          node,
-          fragment: <></>,
-        };
-
-        if (type && !(flags.escape || flags.trivia)) {
-          stack = stack.replace(newFrame);
+          stack = stack.push(newFrame);
         } else {
+          const { node } = tagPath;
+
+          const newFrame = {
+            type: null,
+            node,
+            fragment: <></>,
+          };
+
           stack = stack.push(newFrame);
         }
       }
@@ -240,13 +227,8 @@ function Editor() {
         });
       }
 
-      if (tag.type === NullTag || tag.type === ArrayInitializerTag) {
-        stack = stack.pop();
-      }
-
       if (tag.type === GapTag) {
-        const { 0: ownNode } = [agastContext.nodeForTag(tag)];
-        const reference = agastContext.getPreviousTagPath(tag);
+        const { node: ownNode, reference } = path;
 
         const span = (
           <span
@@ -261,8 +243,6 @@ function Editor() {
         nodeBindings.set(span, ownNode);
         widths.set(ownNode, 1);
 
-        stack = stack.pop();
-
         stack.value.fragment = (
           <>
             {stack.value.fragment}
@@ -273,93 +253,90 @@ function Editor() {
 
       if (tag.type === CloseNodeTag) {
         const doneFrame = stack.value;
-        let type, node, fragment;
-
         stack = stack.pop();
 
-        const { flags } = doneFrame.node;
+        if (path.depth) {
+          let type, node, fragment;
 
-        const reference = agastContext.getPreviousTagPath(btree.getAt(0, doneFrame.node.children));
+          const { flags } = doneFrame.node;
 
-        const referenceAttributes = !(flags.trivia || flags.escape)
-          ? {
-              'data-type': doneFrame.node?.type.description,
-              'data-path': printReferenceTag(reference).slice(0, -1),
-            }
-          : {};
+          const { reference } = path;
 
-        const selected = () => {
-          return selectionRoot() === doneFrame.node;
-        };
+          const referenceAttributes = {
+            'data-type': doneFrame.node?.type.description,
+            'data-path': printReferenceTag(reference).slice(0, -1),
+          };
 
-        const contentEditable = () =>
-          selected() && store.editing && flags.token ? { contenteditable: true } : {};
+          const selected = () => {
+            return selectionRoot() === doneFrame.node;
+          };
 
-        const draggable = () =>
-          selected() && store.selectionState === 'selected' ? { draggable: true } : {};
+          const contentEditable = () =>
+            selected() && store.editing && flags.token ? { contenteditable: true } : {};
 
-        const dragging = () => selected() && !!store.dragTarget;
+          const draggable = () =>
+            selected() && store.selectionState === 'selected' ? { draggable: true } : {};
 
-        const span = (
-          <span
-            {...referenceAttributes}
-            {...contentEditable()}
-            {...draggable()}
-            class={classNames({
-              escape: flags.escape,
-              token: flags.token,
-              trivia: flags.trivia,
-              hasGap: flags.hasGap,
-              selected: selected(),
-              dragging: dragging(),
-            })}
-          >
-            {doneFrame.fragment}
-          </span>
-        );
+          const dragging = () => selected() && !!store.dragTarget;
 
-        nodeBindings.set(doneFrame.node, span);
-        nodeBindings.set(span, doneFrame.node);
-        widths.set(doneFrame.node, getWidth(doneFrame.node));
+          const span = (
+            <span
+              {...referenceAttributes}
+              {...contentEditable()}
+              {...draggable()}
+              class={classNames({
+                escape: reference.value.name === '@',
+                token: flags.token,
+                trivia: reference.value.name === '#',
+                hasGap: flags.hasGap,
+                selected: selected(),
+                dragging: dragging(),
+              })}
+            >
+              {doneFrame.fragment}
+            </span>
+          );
 
-        node = stack.value.node;
-        type = stack.value.type;
-        fragment = span;
+          nodeBindings.set(doneFrame.node, span);
+          nodeBindings.set(span, doneFrame.node);
+          widths.set(doneFrame.node, getWidth(doneFrame.node));
 
-        stack = stack.replace({
-          type,
-          node,
-          fragment: (
-            <>
-              {stack.value.fragment}
-              {fragment}
-            </>
-          ),
-        });
+          node = stack.value.node;
+          type = stack.value.type;
+          fragment = span;
+
+          stack = stack.replace({
+            type,
+            node,
+            fragment: (
+              <>
+                {stack.value.fragment}
+                {fragment}
+              </>
+            ),
+          });
+        } else {
+          let { fragment } = doneFrame;
+
+          // capture the return value (an empty stack doesn't hold any data)
+
+          stack = stack.replace({
+            type: null,
+            node: stack.value.node,
+            fragment: (
+              <>
+                {stack.value.fragment}
+                {fragment}
+              </>
+            ),
+          });
+        }
       }
 
-      if (tag.type === CloseFragmentTag) {
-        const doneFrame = stack.value;
-        let { fragment } = doneFrame;
+      tagPath = tagPath.nextUnshifted;
+    }
 
-        stack = stack.pop();
-
-        // capture the return value (an empty stack doesn't hold any data)
-
-        stack = stack.replace({
-          type: null,
-          node: stack.value.node,
-          fragment: (
-            <>
-              {stack.value.fragment}
-              {fragment}
-            </>
-          ),
-        });
-      }
-
-      return stack;
-    }, emptyStack.push({ type: null, node: null, fragment: null }));
+    return stack;
   };
 
   return (
@@ -438,7 +415,7 @@ function Editor() {
             const tokenNode = nodeBindings.get(e.target);
             const selected = selectedRange();
 
-            if (tokenNode?.type === Symbol.for('@bablr/gap')) {
+            if (isGapNode(tokenNode)) {
               const startTokenNode = selected[0];
               setSelectedRange([startTokenNode, tokenNode]);
             } else if (tokenNode) {
@@ -494,7 +471,7 @@ function Editor() {
         onDragOver={(e) => {
           const tokenNode = nodeBindings.get(e.target);
 
-          if (tokenNode?.type === Symbol.for('@bablr/gap')) {
+          if (isGapNode(tokenNode)) {
             e.dataTransfer.dropEffect = 'move';
             e.preventDefault(); // allow drop
           }
@@ -511,10 +488,10 @@ function Editor() {
 
           e.preventDefault();
 
-          if (tokenNode?.type === Symbol.for('@bablr/gap')) {
+          if (isGapNode(tokenNode)) {
             const { dragTarget } = store;
 
-            setDocument(buildChangeTemplate(agastContext, e.target, nodeBindings.get(dragTarget)));
+            setDocument(buildChangeTemplate(e.target, nodeBindings.get(dragTarget)));
 
             dragTarget.parentNode.removeChild(dragTarget);
 

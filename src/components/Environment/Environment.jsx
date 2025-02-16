@@ -45,7 +45,7 @@ const getCommonParent = (a, b) => {
 
 const defaultDocument = {
   source: embeddedSourceFrom(
-    `'[\n  1, 2, -33,\n  444, {\n    "num": 5555,\n    "str": "hello world",\n    "gap": '<//>'\n  }\n]'`,
+    `'[\n  1, 2, -33,\n  444, {\n    num: 5555,\n    str: "hello world",\n    gap: '<//>'\n  }\n]'`,
     // `'[]'`,
   ),
   expressions: [],
