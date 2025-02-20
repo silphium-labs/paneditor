@@ -1,11 +1,14 @@
 /* @refresh reload */
-/* global document */
+/* global document, globalThis */
 import { render } from 'solid-js/web';
 import { createStore } from 'solid-js/store';
 import { defaultState, StoreContext } from './state/store.js';
 import Environment from './components/Environment/Environment.jsx';
 
 import './index.css';
+import { printTag } from '@bablr/agast-helpers/stream';
+
+globalThis.printTag = printTag;
 
 const root = document.getElementById('root');
 

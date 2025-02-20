@@ -1,13 +1,12 @@
 import { useContext, Show } from 'solid-js';
-import { BABLRContext, SelectionContext, SumContext, nodeBindings } from '../../state/store.js';
+import { SelectionContext, SumContext, nodeBindings } from '../../state/store.js';
 
-import './ContextPane.css';
 import { printAttributes, printType } from '@bablr/agast-helpers/print';
 import { isGapNode } from '@bablr/agast-helpers/path';
 
+import './ContextPane.css';
+
 function ContextPane() {
-  const bablrContext = useContext(BABLRContext);
-  const agastContext = bablrContext.agast;
   const { selectionRoot } = useContext(SelectionContext);
   const { widths } = useContext(SumContext);
 

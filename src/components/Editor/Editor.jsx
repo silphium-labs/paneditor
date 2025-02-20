@@ -25,17 +25,26 @@ import {
   traverseProperties,
   buildGapTag,
   evaluateReturnSync,
+  createNode,
 } from '@bablr/agast-helpers/tree';
-import { isGapNode, isNullNode, Path, PathResolver, TagPath } from '@bablr/agast-helpers/path';
+import {
+  add,
+  isGapNode,
+  isNullNode,
+  Path,
+  PathResolver,
+  TagPath,
+  updatePath,
+} from '@bablr/agast-helpers/path';
 import * as btree from '@bablr/agast-helpers/btree';
 import {
   ReferenceTag,
   OpenNodeTag,
   CloseNodeTag,
   LiteralTag,
-  NullTag,
-  ArrayInitializerTag,
   GapTag,
+  EmbeddedNode,
+  ShiftTag,
 } from '@bablr/agast-helpers/symbols';
 import { debugEnhancers } from '@bablr/helpers/enhancers';
 
@@ -51,72 +60,79 @@ function* ancestors(node) {
   }
 }
 
-const { isArray } = Array;
-
 const computeStartPos = (node, widths) => {};
 
-const buildChangeTemplate = (changedPath, newValue) => {
+const buildMoveTemplate = (sourceHtmlNode, destHtmlNode) => {
+  let newValue = nodeBindings.get(sourceHtmlNode);
+  let changedNode = nodeBindings.get(destHtmlNode);
   let expressions = [];
 
-  let ancestors_ = [...ancestors(changedPath)].reverse();
-  let diffNodes = ancestors_.map((node) => ({
-    ...nodeBindings.get(node),
-    properties: {},
-  }));
+  let destAncestors = [...ancestors(destHtmlNode)].reverse();
+  let sourceAncestors = [...ancestors(sourceHtmlNode)].reverse();
 
-  const changedNode = nodeBindings.get(changedPath);
+  let tagPath = TagPath.from(Path.from(nodeBindings.get(destAncestors[0])), 0);
+  let diffPath = Path.from(createNode());
+  let rootDiffPath = diffPath;
 
-  let i = 0;
-  let node = nodeBindings.get(ancestors_[0]);
-  let resolver = new PathResolver();
+  while (tagPath) {
+    let { tag, path } = tagPath;
+    let { depth } = path;
+    let deeperSourceNode = nodeBindings.get(sourceAncestors[depth + 1]);
+    let deeperDestNode = nodeBindings.get(destAncestors[depth + 1]);
 
-  let stack = []; // { node, i, resolver }
+    if (tag.type === GapTag) {
+      let reference = tagPath.previousSibling.tag;
 
-  stack: for (;;) {
-    let depth = stack.length;
-    let diffNode = diffNodes[depth];
-    let deeperNode = nodeBindings.get(ancestors_[depth + 1]);
-    let deeperDiffNode = diffNodes[depth + 1];
+      if (reference.type === ShiftTag) {
+        throw new Error('umimplemented');
+      }
 
-    // use btree.getAt(idx) with a stack so that expressions are correct
-    for (; i < btree.getSum(node.children); i++) {
-      const child = btree.getAt(i, node.children);
-      if (child.type === ReferenceTag) {
-        const resolvedPath = resolver.advance(child);
-        const childNode = get(node, resolvedPath);
+      let childNode = tagPath.inner;
 
-        if (isArray(childNode)) continue;
+      if (childNode === changedNode) {
+        add(diffPath.node, reference, newValue);
+      } else if (childNode === newValue) {
+        add(diffPath.node, reference, buildStubNode(buildGapTag()));
+        expressions.unshift(buildStubNode(buildGapTag()));
+      } else if (childNode === deeperDestNode || childNode === deeperSourceNode) {
+        let newNode = createNode();
+        add(diffPath.node, reference, newNode);
 
-        const path = nodeBindings.get(childNode);
-        if (childNode === changedNode) {
-          set(diffNode, resolvedPath, newValue);
-        } else if (childNode === deeperNode) {
-          set(diffNode, resolvedPath, deeperDiffNode);
+        diffPath = diffPath.push(newNode, btree.getSum(diffPath.node.children) - 2);
+        tagPath = TagPath.from(tagPath.innerPath, 0);
+        continue;
+      } else {
+        let htmlNode = nodeBindings.get(childNode);
 
-          stack.push({ node, i: i + 1, resolver });
-
-          node = childNode;
-          i = 0;
-          resolver = new PathResolver();
-          continue stack;
+        if (htmlNode?.dataset.path.endsWith('$')) {
+          add(diffPath.node, reference, buildStubNode(buildGapTag()));
+          expressions.unshift(childNode);
         } else {
-          if (path.dataset.path.endsWith('$')) {
-            set(diffNode, resolvedPath, buildStubNode(buildGapTag()));
-            expressions.push(childNode);
-          } else {
-            set(diffNode, resolvedPath, childNode);
-          }
+          add(diffPath.node, reference, childNode);
         }
       }
+    } else if (tag.type === EmbeddedNode) {
+      let reference = tagPath.previousSibling.tag;
+      add(diffPath.node, reference, tag.value);
+    } else if (tag.type === CloseNodeTag) {
+      diffPath.node.children = btree.push(diffPath.node.children, tag);
+    } else if (tag.type === OpenNodeTag) {
+      diffPath.node.children = btree.push(diffPath.node.children, tag);
+      diffPath.node.flags = tag.value.flags;
+      diffPath.node.type = tag.value.type;
+      diffPath.node.language = tag.value.language;
+      diffPath.node.attributes = tag.value.attributes;
     }
 
-    if (stack.length) {
-      ({ node, i, resolver } = stack[stack.length - 1]);
-      stack.pop();
+    if (!tagPath.nextSibling) {
+      tagPath = tagPath.nextUnshifted;
+      diffPath = diffPath.parent;
     } else {
-      return { source: sourceFromTokenStream(streamFromTree(diffNodes[0])), expressions };
+      tagPath = tagPath.nextSibling;
     }
   }
+
+  return { source: sourceFromTokenStream(streamFromTree(rootDiffPath.node)), expressions };
 };
 
 export const getWidth = (node) => {
@@ -152,11 +168,11 @@ const reduceNode = (node, reducer, initialValue) => {
 };
 
 function Editor() {
-  const { selectionRoot, selectedRange, setSelectedRange } = useContext(SelectionContext);
-  const { document, setDocument } = useContext(DocumentContext);
-  const { store, setStore } = useContext(StoreContext);
-  const { widths } = useContext(SumContext);
-  const bablrContext = useContext(BABLRContext);
+  let { selectionRoot, selectedRange, setSelectedRange } = useContext(SelectionContext);
+  let { document, setDocument } = useContext(DocumentContext);
+  let { store, setStore } = useContext(StoreContext);
+  let { widths } = useContext(SumContext);
+  let bablrContext = useContext(BABLRContext);
 
   createEffect(() => {
     if (!store.editing) {
@@ -164,12 +180,12 @@ function Editor() {
     }
   });
 
-  const matcher = spam`<$${buildString(language.canonicalURL)}:Expression />`;
+  let matcher = spam`<$${buildString(language.canonicalURL)}:Expression />`;
 
-  const madness = () => {
-    const { expressions } = document();
+  let madness = () => {
+    let { expressions } = document();
 
-    const tree = evaluateReturnSync(
+    let tree = evaluateReturnSync(
       evaluateIO(() =>
         streamParse(
           bablrContext,
@@ -190,10 +206,10 @@ function Editor() {
 
       if (tag.type === OpenNodeTag) {
         if (tag.value.type) {
-          const { node } = tagPath;
-          const { type, flags } = tag.value;
+          let { node } = tagPath;
+          let { type, flags } = tag.value;
 
-          const newFrame = {
+          let newFrame = {
             type,
             node,
             fragment: <></>,
@@ -201,9 +217,9 @@ function Editor() {
 
           stack = stack.push(newFrame);
         } else {
-          const { node } = tagPath;
+          let { node } = tagPath;
 
-          const newFrame = {
+          let newFrame = {
             type: null,
             node,
             fragment: <></>,
@@ -214,7 +230,7 @@ function Editor() {
       }
 
       if (tag.type === LiteralTag) {
-        const { value } = tag;
+        let { value } = tag;
         stack = stack.replace({
           node: stack.value.node,
           type: stack.value.type,
@@ -228,9 +244,9 @@ function Editor() {
       }
 
       if (tag.type === GapTag) {
-        const { node: ownNode, reference } = path;
+        let { node: ownNode, reference } = path;
 
-        const span = (
+        let span = (
           <span
             class={classNames({ gap: true, selected: selectionRoot() === ownNode })}
             data-path={printReferenceTag(reference).slice(0, -1)}
@@ -252,34 +268,34 @@ function Editor() {
       }
 
       if (tag.type === CloseNodeTag) {
-        const doneFrame = stack.value;
+        let doneFrame = stack.value;
         stack = stack.pop();
 
         if (path.depth) {
           let type, node, fragment;
 
-          const { flags } = doneFrame.node;
+          let { flags } = doneFrame.node;
 
-          const { reference } = path;
+          let { reference } = path;
 
-          const referenceAttributes = {
+          let referenceAttributes = {
             'data-type': doneFrame.node?.type.description,
             'data-path': printReferenceTag(reference).slice(0, -1),
           };
 
-          const selected = () => {
+          let selected = () => {
             return selectionRoot() === doneFrame.node;
           };
 
-          const contentEditable = () =>
+          let contentEditable = () =>
             selected() && store.editing && flags.token ? { contenteditable: true } : {};
 
-          const draggable = () =>
+          let draggable = () =>
             selected() && store.selectionState === 'selected' ? { draggable: true } : {};
 
-          const dragging = () => selected() && !!store.dragTarget;
+          let dragging = () => selected() && !!store.dragTarget;
 
-          const span = (
+          let span = (
             <span
               {...referenceAttributes}
               {...contentEditable()}
@@ -344,9 +360,9 @@ function Editor() {
       <div
         class="editor"
         onMouseDown={(e) => {
-          const tokenNode = nodeBindings.get(e.target);
+          let tokenNode = nodeBindings.get(e.target);
 
-          const oldDoubleClickTarget = store.doubleClickTarget;
+          let oldDoubleClickTarget = store.doubleClickTarget;
 
           if (!oldDoubleClickTarget) {
             setStore('doubleClickTarget', e.target);
@@ -370,15 +386,15 @@ function Editor() {
           }
 
           if (tokenNode) {
-            setSelectedRange([tokenNode, tokenNode]);
+            setSelectedRange([e.target, e.target]);
           } else {
             setSelectedRange([null, null]);
           }
           setStore('selectionState', 'selecting');
 
-          const selection = window.getSelection();
+          let selection = window.getSelection();
 
-          const isEditModeClick =
+          let isEditModeClick =
             store.editing &&
             e.target.contentEditable &&
             e.target === selection?.focusNode?.parentElement;
@@ -389,7 +405,7 @@ function Editor() {
             }
 
             if (oldDoubleClickTarget && e.target === oldDoubleClickTarget) {
-              const range = store.doubleClickRange;
+              let range = store.doubleClickRange;
 
               setStore('editing', true);
               setStore('doubleClickRange', null);
@@ -401,7 +417,7 @@ function Editor() {
             } else {
               window.setTimeout(() => {
                 if (store.doubleClickTarget) {
-                  const range = selection.rangeCount ? selection.getRangeAt(0) : null;
+                  let range = selection.rangeCount ? selection.getRangeAt(0) : null;
                   selection.removeAllRanges();
                   if (range) range.collapse();
                   setStore('doubleClickRange', range);
@@ -412,25 +428,25 @@ function Editor() {
         }}
         onMouseOver={(e) => {
           if (store.selectionState === 'selecting') {
-            const tokenNode = nodeBindings.get(e.target);
-            const selected = selectedRange();
+            let tokenNode = nodeBindings.get(e.target);
+            let selected = selectedRange();
 
             if (isGapNode(tokenNode)) {
-              const startTokenNode = selected[0];
-              setSelectedRange([startTokenNode, tokenNode]);
+              let startTokenNode = selected[0];
+              setSelectedRange([startTokenNode, e.target]);
             } else if (tokenNode) {
               let range;
 
-              const startTokenNode = selected[0];
+              let startTokenNode = selected[0];
 
               if (startTokenNode) {
                 if (computeStartPos(tokenNode, widths) < computeStartPos(startTokenNode, widths)) {
-                  range = [startTokenNode, tokenNode];
+                  range = [startTokenNode, e.target];
                 } else {
-                  range = [startTokenNode, tokenNode];
+                  range = [startTokenNode, e.target];
                 }
               } else {
-                range = [tokenNode, tokenNode];
+                range = [e.target, e.target];
               }
 
               setSelectedRange(range);
@@ -448,7 +464,7 @@ function Editor() {
         }}
         onMouseOut={(e) => {
           if (store.selectionState === 'selecting') {
-            const token = nodeBindings.get(e.target);
+            let token = nodeBindings.get(e.target);
             if (!token) {
               setSelectedRange([selectedRange()[0], selectedRange()[0]]);
             }
@@ -462,14 +478,14 @@ function Editor() {
           }
         }}
         onDragStart={(e) => {
-          const clone = e.target.cloneNode(true);
+          let clone = e.target.cloneNode(true);
           clone.id = 'dragShadow';
           window.document.body.appendChild(clone);
           e.dataTransfer.setDragImage(clone, 0, 0);
           setStore('dragTarget', e.target);
         }}
         onDragOver={(e) => {
-          const tokenNode = nodeBindings.get(e.target);
+          let tokenNode = nodeBindings.get(e.target);
 
           if (isGapNode(tokenNode)) {
             e.dataTransfer.dropEffect = 'move';
@@ -484,18 +500,23 @@ function Editor() {
           window.document.getElementById('dragShadow').remove();
         }}
         onDrop={(e) => {
-          const tokenNode = nodeBindings.get(e.target);
+          let tokenNode = nodeBindings.get(e.target);
 
           e.preventDefault();
 
           if (isGapNode(tokenNode)) {
-            const { dragTarget } = store;
+            let { dragTarget } = store;
 
-            setDocument(buildChangeTemplate(e.target, nodeBindings.get(dragTarget)));
+            setDocument(buildMoveTemplate(dragTarget, e.target));
 
             dragTarget.parentNode.removeChild(dragTarget);
 
             e.target.replaceWith(dragTarget);
+
+            setStore('dragTarget', null);
+            setStore('doubleClickTarget', null);
+
+            window.document.getElementById('dragShadow').remove();
           }
         }}
       >

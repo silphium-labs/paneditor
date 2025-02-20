@@ -61,7 +61,19 @@ function Environment() {
 
     if (!range[0] || !range[1]) return null;
 
-    return range[0] === range[1] ? range[0] : getCommonParent(range[0], range[1]);
+    if (range[0] === range[1]) {
+      let pathNode = range[0];
+      let node = nodeBindings.get(pathNode);
+
+      if (node.flags.token && !node.flags.hasGap && !pathNode.dataset.path.endsWith('$')) {
+        pathNode = pathNode.parentNode;
+        node = nodeBindings.get(pathNode);
+      }
+
+      return node;
+    } else {
+      return getCommonParent(nodeBindings.get(range[0]), nodeBindings.get(range[1]));
+    }
   });
 
   return (
