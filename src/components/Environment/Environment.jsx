@@ -7,7 +7,7 @@ import {
   SelectionContext,
   DocumentContext,
   BABLRContext as BABLRSolidContext,
-  SumContext,
+  EditContext,
   nodeBindings,
 } from '../../state/store.js';
 
@@ -79,7 +79,7 @@ function Environment() {
   return (
     <>
       <BABLRSolidContext.Provider value={bablrContext}>
-        <SumContext.Provider>
+        <EditContext.Provider>
           <DocumentContext.Provider value={{ document, setDocument }}>
             <SelectionContext.Provider value={{ selectionRoot, selectedRange, setSelectedRange }}>
               <div class="environment">
@@ -88,7 +88,7 @@ function Environment() {
               </div>
             </SelectionContext.Provider>
           </DocumentContext.Provider>
-        </SumContext.Provider>
+        </EditContext.Provider>
       </BABLRSolidContext.Provider>
     </>
   );

@@ -1,5 +1,5 @@
 import { useContext, Show } from 'solid-js';
-import { SelectionContext, SumContext, nodeBindings } from '../../state/store.js';
+import { SelectionContext, EditContext, nodeBindings } from '../../state/store.js';
 
 import { printAttributes, printType } from '@bablr/agast-helpers/print';
 import { isGapNode } from '@bablr/agast-helpers/path';
@@ -8,7 +8,7 @@ import './ContextPane.css';
 
 function ContextPane() {
   const { selectionRoot } = useContext(SelectionContext);
-  const { widths } = useContext(SumContext);
+  const { widths } = useContext(EditContext);
 
   const isGap = () => selectionRoot() && isGapNode(selectionRoot());
 

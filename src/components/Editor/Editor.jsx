@@ -14,7 +14,7 @@ import {
   DocumentContext,
   BABLRContext,
   StoreContext,
-  SumContext,
+  EditContext,
   nodeBindings,
 } from '../../state/store.js';
 import {
@@ -26,16 +26,10 @@ import {
   buildGapTag,
   evaluateReturnSync,
   createNode,
+  buildLiteralTag,
+  treeFromStreamSync as treeFromStream,
 } from '@bablr/agast-helpers/tree';
-import {
-  add,
-  isGapNode,
-  isNullNode,
-  Path,
-  PathResolver,
-  TagPath,
-  updatePath,
-} from '@bablr/agast-helpers/path';
+import { add, isGapNode, isNullNode, Path, TagPath } from '@bablr/agast-helpers/path';
 import * as btree from '@bablr/agast-helpers/btree';
 import {
   ReferenceTag,
@@ -135,6 +129,76 @@ const buildMoveTemplate = (sourceHtmlNode, destHtmlNode) => {
   return { source: sourceFromTokenStream(streamFromTree(rootDiffPath.node)), expressions };
 };
 
+const buildSetTemplate = (destHtmlNode, newValue) => {
+  let changedNode = nodeBindings.get(destHtmlNode);
+  let expressions = [];
+
+  let destAncestors = [...ancestors(destHtmlNode)].reverse();
+
+  let tagPath = TagPath.from(Path.from(nodeBindings.get(destAncestors[0])), 0);
+  let diffPath = Path.from(createNode());
+  let rootDiffPath = diffPath;
+
+  while (tagPath) {
+    let { tag, path } = tagPath;
+    let { depth } = path;
+    let deeperDestNode = nodeBindings.get(destAncestors[depth + 1]);
+
+    if (tag.type === GapTag) {
+      let reference = tagPath.previousSibling.tag;
+
+      if (reference.type === ShiftTag) {
+        throw new Error('umimplemented');
+      }
+
+      let childNode = tagPath.inner;
+
+      if (childNode === changedNode) {
+        add(diffPath.node, reference, newValue);
+      } else if (childNode === newValue) {
+        add(diffPath.node, reference, buildStubNode(buildGapTag()));
+        expressions.unshift(buildStubNode(buildGapTag()));
+      } else if (childNode === deeperDestNode) {
+        let newNode = createNode();
+        add(diffPath.node, reference, newNode);
+
+        diffPath = diffPath.push(newNode, btree.getSum(diffPath.node.children) - 2);
+        tagPath = TagPath.from(tagPath.innerPath, 0);
+        continue;
+      } else {
+        let htmlNode = nodeBindings.get(childNode);
+
+        if (htmlNode?.dataset.path.endsWith('$')) {
+          add(diffPath.node, reference, buildStubNode(buildGapTag()));
+          expressions.unshift(childNode);
+        } else {
+          add(diffPath.node, reference, childNode);
+        }
+      }
+    } else if (tag.type === EmbeddedNode) {
+      let reference = tagPath.previousSibling.tag;
+      add(diffPath.node, reference, tag.value);
+    } else if (tag.type === CloseNodeTag) {
+      diffPath.node.children = btree.push(diffPath.node.children, tag);
+    } else if (tag.type === OpenNodeTag) {
+      diffPath.node.children = btree.push(diffPath.node.children, tag);
+      diffPath.node.flags = tag.value.flags;
+      diffPath.node.type = tag.value.type;
+      diffPath.node.language = tag.value.language;
+      diffPath.node.attributes = tag.value.attributes;
+    }
+
+    if (!tagPath.nextSibling) {
+      tagPath = tagPath.nextUnshifted;
+      diffPath = diffPath.parent;
+    } else {
+      tagPath = tagPath.nextSibling;
+    }
+  }
+
+  return { source: sourceFromTokenStream(streamFromTree(rootDiffPath.node)), expressions };
+};
+
 export const getWidth = (node) => {
   if (isGapNode(node)) return 1;
   if (isNullNode(node)) return 0;
@@ -171,7 +235,7 @@ function Editor() {
   let { selectionRoot, selectedRange, setSelectedRange } = useContext(SelectionContext);
   let { document, setDocument } = useContext(DocumentContext);
   let { store, setStore } = useContext(StoreContext);
-  let { widths } = useContext(SumContext);
+  let { widths, editStates } = useContext(EditContext);
   let bablrContext = useContext(BABLRContext);
 
   createEffect(() => {
@@ -566,9 +630,31 @@ function Editor() {
     onKeyDown: (e) => {
       if (e.key === 'Escape') {
         setStore('editing', false);
-      }
+        e.preventDefault();
+      } else if (e.key === 'Enter') {
+        // TODO implement other ways (e.g. touch) to accept edits
+        const selected = selectedRange();
 
-      e.preventDefault();
+        if (selected[0] !== selected[1]) throw new Error();
+
+        let token = nodeBindings.get(selected[0]);
+
+        if (!token.flags.token) throw new Error();
+
+        setDocument(
+          buildSetTemplate(
+            selected[0],
+            treeFromStream([
+              btree.getAt(0, token.children),
+              buildLiteralTag(e.target.innerText),
+              btree.getAt(-1, token.children),
+            ]),
+          ),
+        );
+
+        setStore('editing', false);
+        e.preventDefault();
+      }
     },
     onMouseOut: (e) => {
       if (store.touchTarget) return;

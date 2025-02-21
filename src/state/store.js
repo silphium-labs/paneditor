@@ -2,6 +2,8 @@ import { createContext } from 'solid-js';
 
 const widths = new WeakMap();
 
+const editStates = new WeakMap();
+
 export const nodeBindings = new WeakMap();
 
 export const defaultState = {
@@ -25,4 +27,4 @@ export const DocumentContext = createContext();
 
 export const SelectionContext = createContext();
 
-export const SumContext = createContext({ widths });
+export const EditContext = createContext({ widths, editStates });
