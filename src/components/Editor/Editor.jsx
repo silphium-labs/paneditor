@@ -246,13 +246,12 @@ function Editor() {
       if (tag.type === GapTag) {
         let { node: ownNode, reference } = path;
 
+        // prettier-ignore
         let span = (
           <span
             class={classNames({ node: true, gap: true, selected: selectionRoot() === ownNode })}
             data-path={printReferenceTag(reference).slice(0, -1)}
-          >
-            &nbsp;
-          </span>
+          >&nbsp;&nbsp;</span>
         );
 
         nodeBindings.set(ownNode, span);
