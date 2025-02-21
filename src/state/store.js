@@ -8,7 +8,12 @@ export const defaultState = {
   selectionState: 'none',
   dragTarget: null,
   editing: false,
+  touchTarget: null,
+  doubleTouchTarget: null,
+  doubleTouchTimeout: null,
+  doubleTouchRange: null,
   doubleClickTarget: null,
+  doubleClickTimeout: null,
   doubleClickRange: null,
 };
 

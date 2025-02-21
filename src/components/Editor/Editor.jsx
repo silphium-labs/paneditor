@@ -248,7 +248,7 @@ function Editor() {
 
         let span = (
           <span
-            class={classNames({ gap: true, selected: selectionRoot() === ownNode })}
+            class={classNames({ node: true, gap: true, selected: selectionRoot() === ownNode })}
             data-path={printReferenceTag(reference).slice(0, -1)}
           >
             &nbsp;
@@ -301,6 +301,7 @@ function Editor() {
               {...contentEditable()}
               {...draggable()}
               class={classNames({
+                node: true,
                 escape: reference.value.name === '@',
                 token: flags.token,
                 trivia: reference.value.name === '#',
@@ -355,85 +356,191 @@ function Editor() {
     return stack;
   };
 
-  return (
-    <>
-      <div
-        class="editor"
-        onMouseDown={(e) => {
-          let tokenNode = nodeBindings.get(e.target);
+  const handlers = {
+    onMouseDown: (e) => {
+      let tokenNode = nodeBindings.get(e.target);
 
-          let oldDoubleClickTarget = store.doubleClickTarget;
+      let oldDoubleClickTarget = store.doubleClickTarget;
 
-          if (!oldDoubleClickTarget) {
-            setStore('doubleClickTarget', e.target);
+      if (!oldDoubleClickTarget) {
+        setStore('doubleClickTarget', e.target);
 
-            window.setTimeout(() => setStore('doubleClickTarget', null), 300);
-          } else {
-            setStore('doubleClickTarget', null);
-          }
+        const timeout = window.setTimeout(() => setStore('doubleClickTarget', null), 300);
+        setStore('doubleClickTimeout', timeout);
+      } else {
+        setStore('doubleClickTarget', null);
+      }
 
-          // if (store.selectionState === 'selected') debugger;
-          if (
-            store.selectionState === 'selected' &&
-            find((node) => node.draggable, ancestors(e.target)) &&
-            !oldDoubleClickTarget
-          ) {
-            return;
-          }
+      // if (store.selectionState === 'selected') debugger;
+      if (
+        store.selectionState === 'selected' &&
+        find((node) => node.draggable, ancestors(e.target)) &&
+        !oldDoubleClickTarget
+      ) {
+        return;
+      }
 
-          if ((oldDoubleClickTarget || !tokenNode) && !store.editing) {
-            e.preventDefault();
-          }
+      if ((oldDoubleClickTarget || !tokenNode) && !store.editing && !e.touches) {
+        e.preventDefault();
+      }
 
-          if (tokenNode) {
-            setSelectedRange([e.target, e.target]);
-          } else {
-            setSelectedRange([null, null]);
-          }
-          setStore('selectionState', 'selecting');
+      if (tokenNode) {
+        setSelectedRange([e.target, e.target]);
+      } else {
+        setSelectedRange([null, null]);
+      }
+      setStore('selectionState', 'selecting');
 
-          let selection = window.getSelection();
+      let selection = window.getSelection();
 
-          let isEditModeClick =
-            store.editing &&
-            e.target.contentEditable &&
-            e.target === selection?.focusNode?.parentElement;
+      let isEditModeClick =
+        store.editing &&
+        e.target.contentEditable &&
+        e.target === selection?.focusNode?.parentElement;
 
-          if (!isEditModeClick) {
-            if (store.editing) {
-              setStore('editing', false);
-            }
+      if (!isEditModeClick) {
+        if (store.editing) {
+          setStore('editing', false);
+        }
 
-            if (oldDoubleClickTarget && e.target === oldDoubleClickTarget) {
-              let range = store.doubleClickRange;
+        if (oldDoubleClickTarget && e.target === oldDoubleClickTarget) {
+          let range = store.doubleClickRange;
 
-              setStore('editing', true);
-              setStore('doubleClickRange', null);
+          setStore('editing', true);
+          setStore('doubleClickRange', null);
 
+          selection.removeAllRanges();
+          if (range) selection.addRange(range);
+
+          e.preventDefault();
+        } else {
+          window.setTimeout(() => {
+            if (store.doubleClickTarget) {
+              let range = selection.rangeCount ? selection.getRangeAt(0) : null;
               selection.removeAllRanges();
-              selection.addRange(range);
-
-              e.preventDefault();
-            } else {
-              window.setTimeout(() => {
-                if (store.doubleClickTarget) {
-                  let range = selection.rangeCount ? selection.getRangeAt(0) : null;
-                  selection.removeAllRanges();
-                  if (range) range.collapse();
-                  setStore('doubleClickRange', range);
-                }
-              });
+              if (range) range.collapse();
+              setStore('doubleClickRange', range);
             }
+          });
+        }
+      }
+    },
+    onTouchStart: (e) => {
+      let tokenNode = nodeBindings.get(e.target);
+
+      setStore('touchTarget', e.target);
+
+      let oldDoubleTouchTarget = store.doubleTouchTarget;
+
+      if (!oldDoubleTouchTarget) {
+        setStore('doubleTouchTarget', e.target);
+
+        const timeout = window.setTimeout(() => setStore('doubleTouchTarget', null), 300);
+        setStore('doubleTouchTimeout', timeout);
+      } else {
+        setStore('doubleTouchTarget', null);
+      }
+
+      if (
+        store.selectionState === 'selected' &&
+        find((node) => node.draggable, ancestors(e.target)) &&
+        !oldDoubleTouchTarget
+      ) {
+        return;
+      }
+
+      // if ((oldDoubleTouchTarget || !tokenNode) && !store.editing) {
+      //   e.preventDefault();
+      // }
+
+      if (tokenNode) {
+        setSelectedRange([e.target, e.target]);
+      } else {
+        setSelectedRange([null, null]);
+      }
+      setStore('selectionState', 'selecting');
+
+      let selection = window.getSelection();
+
+      let isEditModeTouch =
+        store.editing &&
+        e.target.contentEditable &&
+        e.target === selection?.focusNode?.parentElement;
+
+      if (!isEditModeTouch) {
+        if (store.editing) {
+          setStore('editing', false);
+        }
+
+        if (oldDoubleTouchTarget && e.target === oldDoubleTouchTarget) {
+          let range = store.doubleTouchRange;
+
+          setStore('editing', true);
+          setStore('doubleTouchRange', null);
+
+          selection.removeAllRanges();
+          if (range) selection.addRange(range);
+
+          // e.preventDefault();
+        } else {
+          window.setTimeout(() => {
+            if (store.doubleTouchTarget) {
+              let range = selection.rangeCount ? selection.getRangeAt(0) : null;
+              selection.removeAllRanges();
+              if (range) range.collapse();
+              setStore('doubleTouchRange', range);
+            }
+          });
+        }
+      }
+    },
+    onMouseOver: (e) => {
+      if (store.touchTarget) return;
+
+      if (store.selectionState === 'selecting') {
+        let tokenNode = nodeBindings.get(e.target);
+        let selected = selectedRange();
+
+        if (isGapNode(tokenNode)) {
+          let startTokenNode = selected[0];
+          setSelectedRange([startTokenNode, e.target]);
+        } else if (tokenNode) {
+          let range;
+
+          let startTokenNode = selected[0];
+
+          if (startTokenNode) {
+            if (computeStartPos(tokenNode, widths) < computeStartPos(startTokenNode, widths)) {
+              range = [startTokenNode, e.target];
+            } else {
+              range = [startTokenNode, e.target];
+            }
+          } else {
+            range = [e.target, e.target];
           }
-        }}
-        onMouseOver={(e) => {
+
+          setSelectedRange(range);
+        } else {
+          setSelectedRange([selectedRange()[0], selectedRange()[0]]);
+        }
+      }
+    },
+    onTouchMove: (e) => {
+      if (e.touches.length === 1) {
+        let touch = e.touches[0];
+
+        let target = window.document.elementFromPoint(touch.clientX, touch.clientY);
+
+        if (target !== store.touchTarget) {
+          setStore('touchTarget', target);
+
           if (store.selectionState === 'selecting') {
-            let tokenNode = nodeBindings.get(e.target);
+            let tokenNode = nodeBindings.get(target);
             let selected = selectedRange();
 
             if (isGapNode(tokenNode)) {
               let startTokenNode = selected[0];
-              setSelectedRange([startTokenNode, e.target]);
+              setSelectedRange([startTokenNode, target]);
             } else if (tokenNode) {
               let range;
 
@@ -441,12 +548,12 @@ function Editor() {
 
               if (startTokenNode) {
                 if (computeStartPos(tokenNode, widths) < computeStartPos(startTokenNode, widths)) {
-                  range = [startTokenNode, e.target];
+                  range = [startTokenNode, target];
                 } else {
-                  range = [startTokenNode, e.target];
+                  range = [startTokenNode, target];
                 }
               } else {
-                range = [e.target, e.target];
+                range = [target, target];
               }
 
               setSelectedRange(range);
@@ -454,71 +561,110 @@ function Editor() {
               setSelectedRange([selectedRange()[0], selectedRange()[0]]);
             }
           }
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            setStore('editing', false);
-          }
+        }
+      }
+    },
+    onKeyDown: (e) => {
+      if (e.key === 'Escape') {
+        setStore('editing', false);
+      }
 
-          e.preventDefault();
-        }}
-        onMouseOut={(e) => {
-          if (store.selectionState === 'selecting') {
-            let token = nodeBindings.get(e.target);
-            if (!token) {
-              setSelectedRange([selectedRange()[0], selectedRange()[0]]);
-            }
-          }
-        }}
-        onMouseUp={(e) => {
-          setStore('selectionState', selectedRange() ? 'selected' : 'none');
+      e.preventDefault();
+    },
+    onMouseOut: (e) => {
+      if (store.touchTarget) return;
+      if (store.selectionState === 'selecting') {
+        let token = nodeBindings.get(e.target);
+        if (!token) {
+          setSelectedRange([selectedRange()[0], selectedRange()[0]]);
+        }
+      }
+    },
+    onMouseUp: (e) => {
+      if (store.touchTarget) return;
+      setStore('selectionState', selectedRange() ? 'selected' : 'none');
 
-          if (e.target !== store.doubleClickTarget) {
-            setStore('doubleClickTarget', null);
-          }
-        }}
-        onDragStart={(e) => {
-          let clone = e.target.cloneNode(true);
-          clone.id = 'dragShadow';
-          window.document.body.appendChild(clone);
-          e.dataTransfer.setDragImage(clone, 0, 0);
-          setStore('dragTarget', e.target);
-        }}
-        onDragOver={(e) => {
-          let tokenNode = nodeBindings.get(e.target);
+      if (e.target !== store.doubleClickTarget) {
+        window.clearTimeout(store.doubleClickTimeout);
 
-          if (isGapNode(tokenNode)) {
-            e.dataTransfer.dropEffect = 'move';
-            e.preventDefault(); // allow drop
-          }
-        }}
-        onDragEnd={(e) => {
-          setStore('dragTarget', null);
+        setStore('doubleClickTarget', null);
+        setStore('doubleClickTimeout', null);
+      }
+    },
 
-          setStore('doubleClickTarget', null);
+    onTouchEnd: (e) => {
+      setStore('touchTarget', null);
 
-          window.document.getElementById('dragShadow').remove();
-        }}
-        onDrop={(e) => {
-          let tokenNode = nodeBindings.get(e.target);
+      setStore('selectionState', selectedRange() ? 'selected' : 'none');
 
-          e.preventDefault();
+      if (e.target !== store.doubleTouchTarget) {
+        window.clearTimeout(store.doubleTouchTimeout);
 
-          if (isGapNode(tokenNode)) {
-            let { dragTarget } = store;
+        setStore('doubleTouchTarget', null);
+        setStore('doubleTouchTimeout', null);
+      }
+    },
+    onDragStart: (e) => {
+      let clone = e.target.cloneNode(true);
+      clone.id = 'dragShadow';
+      window.document.body.appendChild(clone);
+      e.dataTransfer.setDragImage(clone, 0, 0);
+      setStore('dragTarget', e.target);
+    },
+    onDragOver: (e) => {
+      let tokenNode = nodeBindings.get(e.target);
 
-            setDocument(buildMoveTemplate(dragTarget, e.target));
+      if (isGapNode(tokenNode)) {
+        e.dataTransfer.dropEffect = 'move';
+        e.preventDefault(); // allow drop
+      }
+    },
+    onDragEnd: (e) => {
+      setStore('dragTarget', null);
 
-            dragTarget.parentNode.removeChild(dragTarget);
+      setStore('doubleClickTarget', null);
 
-            e.target.replaceWith(dragTarget);
+      window.document.getElementById('dragShadow').remove();
+    },
+    onDrop: (e) => {
+      let tokenNode = nodeBindings.get(e.target);
 
-            setStore('dragTarget', null);
-            setStore('doubleClickTarget', null);
+      e.preventDefault();
 
-            window.document.getElementById('dragShadow').remove();
-          }
-        }}
+      if (isGapNode(tokenNode)) {
+        let { dragTarget } = store;
+
+        setDocument(buildMoveTemplate(dragTarget, e.target));
+
+        dragTarget.parentNode.removeChild(dragTarget);
+
+        e.target.replaceWith(dragTarget);
+
+        setStore('dragTarget', null);
+        setStore('doubleClickTarget', null);
+
+        window.document.getElementById('dragShadow').remove();
+      }
+    },
+  };
+
+  return (
+    <>
+      <div
+        class="editor"
+        onMouseDown={handlers.onMouseDown}
+        onTouchStart={handlers.onTouchStart}
+        onMouseOver={handlers.onMouseOver}
+        onTouchMove={handlers.onTouchMove}
+        onKeyDown={handlers.onKeyDown}
+        onMouseOut={handlers.onMouseOut}
+        onTouchEnd={handlers.onTouchEnd}
+        onTouchCancel={handlers.onTouchEnd}
+        onMouseUp={handlers.onMouseUp}
+        onDragStart={handlers.onDragStart}
+        onDragOver={handlers.onDragOver}
+        onDragEnd={handlers.onDragEnd}
+        onDrop={handlers.onDrop}
       >
         {madness().value.fragment}
       </div>

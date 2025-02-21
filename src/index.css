@@ -71,3 +71,7 @@ button:focus-visible {
   margin: 0;
   height: calc(100vh);
 }
+
+span.node {
+  touch-action: manipulation;
+}

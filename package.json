@@ -17,6 +17,7 @@
     "@bablr/language-en-cstml-json": "0.1.0",
     "bablr": "0.7.0",
     "classnames": "2.5.1",
+    "drag-drop-touch": "github:drag-drop-touch-js/dragdroptouch#07edc6d96c029dd83e98c09b8128816bf1438511",
     "iter-tools-es": "7.5.3",
     "solid-js": "1.8.18"
   },
