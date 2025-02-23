@@ -145,7 +145,7 @@ function Editor() {
               {existingHtmlNode}
             </>
           );
-          tagPath = TagPath.from(path, -1).nextUnshifted;
+          tagPath = TagPath.from(path, -1);
         } else {
           stack = stack.push({
             type,
