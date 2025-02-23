@@ -3,7 +3,7 @@
 import emptyStack from '@iter-tools/imm-stack';
 import joinWith from 'iter-tools-es/methods/join-with';
 import find from 'iter-tools-es/methods/find';
-import { createEffect, createSignal, useContext } from 'solid-js';
+import { createEffect, createRoot, useContext, runWithOwner, getOwner } from 'solid-js';
 import { streamParse } from 'bablr';
 import { spam } from '@bablr/boot';
 import * as language from '@bablr/language-en-cstml-json';
@@ -45,6 +45,13 @@ import { debugEnhancers } from '@bablr/helpers/enhancers';
 import './Editor.css';
 import { sourceFromTokenStream } from '@bablr/helpers/source';
 import { buildString } from '@bablr/helpers/builders';
+
+// TODO this is a horrible horrible hack
+// we need to manage ownership better to keep the nodes alive only as long as they are really used
+let solidRoot;
+createRoot(() => {
+  solidRoot = getOwner();
+});
 
 function* ancestors(node) {
   let parent = node;
@@ -126,27 +133,25 @@ function Editor() {
       let { tag, path } = tagPath;
 
       if (tag.type === OpenNodeTag) {
-        if (tag.value.type) {
-          let { node } = tagPath;
-          let { type, flags } = tag.value;
+        let { path, node } = tagPath;
+        let { type, flags } = tag.value;
 
-          let newFrame = {
+        let existingHtmlNode = nodeBindings.get(node);
+
+        if (existingHtmlNode) {
+          stack.value.fragment = (
+            <>
+              {stack.value.fragment}
+              {existingHtmlNode}
+            </>
+          );
+          tagPath = TagPath.from(path, -1).nextUnshifted;
+        } else {
+          stack = stack.push({
             type,
             node,
             fragment: <></>,
-          };
-
-          stack = stack.push(newFrame);
-        } else {
-          let { node } = tagPath;
-
-          let newFrame = {
-            type: null,
-            node,
-            fragment: <></>,
-          };
-
-          stack = stack.push(newFrame);
+          });
         }
       }
 
@@ -191,85 +196,70 @@ function Editor() {
         let doneFrame = stack.value;
         stack = stack.pop();
 
-        if (path.depth) {
-          let type, node, fragment;
+        let fragment;
 
+        if (path.depth) {
           let { flags } = doneFrame.node;
 
           let { reference } = path;
 
-          let referenceAttributes = {
-            'data-type': doneFrame.node?.type.description,
-            'data-path': printReferenceTag(reference).slice(0, -1),
-          };
+          let span = runWithOwner(solidRoot, () => {
+            let referenceAttributes = {
+              'data-type': doneFrame.node?.type.description,
+              'data-path': printReferenceTag(reference).slice(0, -1),
+            };
 
-          let selected = () => {
-            return selectionRoot() === doneFrame.node;
-          };
+            let selected = () => {
+              return selectionRoot() === doneFrame.node;
+            };
 
-          let contentEditable = () =>
-            selected() && store.editing && flags.token ? { contenteditable: true } : {};
+            let contentEditable = () =>
+              selected() && store.editing && flags.token ? { contenteditable: true } : {};
 
-          let draggable = () =>
-            !store.editing && selected() && store.selectionState === 'selected'
-              ? { draggable: true }
-              : {};
+            let draggable = () =>
+              !store.editing && selected() && store.selectionState === 'selected'
+                ? { draggable: true }
+                : {};
 
-          let dragging = () => selected() && !!store.dragTarget;
+            let dragging = () => selected() && !!store.dragTarget;
 
-          let span = (
-            <span
-              {...referenceAttributes}
-              {...contentEditable()}
-              {...draggable()}
-              class={classNames({
-                node: true,
-                escape: reference.value.name === '@',
-                token: flags.token,
-                trivia: reference.value.name === '#',
-                hasGap: flags.hasGap,
-                selected: selected(),
-                dragging: dragging(),
-              })}
-            >
-              {doneFrame.fragment}
-            </span>
-          );
+            return (
+              <span
+                {...referenceAttributes}
+                {...contentEditable()}
+                {...draggable()}
+                class={classNames({
+                  node: true,
+                  escape: reference.value.name === '@',
+                  token: flags.token,
+                  trivia: reference.value.name === '#',
+                  hasGap: flags.hasGap,
+                  selected: selected(),
+                  dragging: dragging(),
+                })}
+              >
+                {doneFrame.fragment}
+              </span>
+            );
+          });
 
           nodeBindings.set(doneFrame.node, span);
           nodeBindings.set(span, doneFrame.node);
           widths.set(doneFrame.node, getWidth(doneFrame.node));
 
-          node = stack.value.node;
-          type = stack.value.type;
           fragment = span;
-
-          stack = stack.replace({
-            type,
-            node,
-            fragment: (
-              <>
-                {stack.value.fragment}
-                {fragment}
-              </>
-            ),
-          });
         } else {
-          let { fragment } = doneFrame;
+          ({ fragment } = doneFrame);
 
           // capture the return value (an empty stack doesn't hold any data)
-
-          stack = stack.replace({
-            type: null,
-            node: stack.value.node,
-            fragment: (
-              <>
-                {stack.value.fragment}
-                {fragment}
-              </>
-            ),
-          });
         }
+
+        stack.value.fragment = (
+          <>
+            {stack.value.fragment}
+            {fragment}
+          </>
+        );
       }
 
       tagPath = tagPath.nextUnshifted;
@@ -429,20 +419,19 @@ function Editor() {
       let oldSelectedRange = selectedRange();
       let isDoubleClick = oldDoubleClickTarget === e.target;
 
+      if (store.doubleClickTimeout) window.clearTimeout(store.doubleClickTimeout);
+
       if (!isDoubleClick) {
         setStore('doubleClickTarget', e.target);
 
         setStore(
           'doubleClickTimeout',
           window.setTimeout(() => {
-            if (store.doubleClickTimeout) window.clearTimeout(store.doubleClickTimeout);
             setStore('doubleClickTarget', null);
             setStore('doubleClickTimeout', null);
           }, 300),
         );
       } else {
-        window.clearTimeout(store.doubleClickTimeout);
-
         setStore('doubleClickTarget', null);
         setStore('doubleClickTimeout', null);
       }
@@ -460,21 +449,21 @@ function Editor() {
         e.preventDefault();
       }
 
-      if (!store.editing && !store.touchTimeout) {
-        if (tokenNode) {
-          setSelectedRange([e.target, e.target]);
-        } else {
-          setSelectedRange([null, null]);
-        }
-        setStore('selectionState', 'selecting');
-      }
-
       let selection = window.getSelection();
 
       let isEditModeClick =
         store.editing && e.target.contentEditable && e.target === selectedRange()[0];
 
       if (!isEditModeClick) {
+        if (!store.touchTimeout) {
+          if (tokenNode) {
+            setSelectedRange([e.target, e.target]);
+          } else {
+            setSelectedRange([null, null]);
+          }
+          setStore('selectionState', 'selecting');
+        }
+
         if (store.editing && !store.touchTimeout) {
           const selected = oldSelectedRange;
 
@@ -484,6 +473,8 @@ function Editor() {
 
           if (!token.flags.token) throw new Error();
 
+          // this prevents you double clicking on a different node to enter its edit mode
+          // as you leave your edit mode, the target changes
           doSet(
             selected[0],
             treeFromStream([
