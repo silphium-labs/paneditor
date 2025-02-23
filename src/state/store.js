@@ -11,6 +11,7 @@ export const defaultState = {
   dragTarget: null,
   editing: false,
   touchTarget: null,
+  touchTimeout: null,
   doubleTouchTarget: null,
   doubleTouchTimeout: null,
   doubleTouchRange: null,

@@ -3,7 +3,7 @@
 import emptyStack from '@iter-tools/imm-stack';
 import joinWith from 'iter-tools-es/methods/join-with';
 import find from 'iter-tools-es/methods/find';
-import { createEffect, useContext } from 'solid-js';
+import { createEffect, createSignal, useContext } from 'solid-js';
 import { streamParse } from 'bablr';
 import { spam } from '@bablr/boot';
 import * as language from '@bablr/language-en-cstml-json';
@@ -56,149 +56,6 @@ function* ancestors(node) {
 
 const computeStartPos = (node, widths) => {};
 
-const buildMoveTemplate = (sourceHtmlNode, destHtmlNode) => {
-  let newValue = nodeBindings.get(sourceHtmlNode);
-  let changedNode = nodeBindings.get(destHtmlNode);
-  let expressions = [];
-
-  let destAncestors = [...ancestors(destHtmlNode)].reverse();
-  let sourceAncestors = [...ancestors(sourceHtmlNode)].reverse();
-
-  let tagPath = TagPath.from(Path.from(nodeBindings.get(destAncestors[0])), 0);
-  let diffPath = Path.from(createNode());
-  let rootDiffPath = diffPath;
-
-  while (tagPath) {
-    let { tag, path } = tagPath;
-    let { depth } = path;
-    let deeperSourceNode = nodeBindings.get(sourceAncestors[depth + 1]);
-    let deeperDestNode = nodeBindings.get(destAncestors[depth + 1]);
-
-    if (tag.type === GapTag) {
-      let reference = tagPath.previousSibling.tag;
-
-      if (reference.type === ShiftTag) {
-        throw new Error('umimplemented');
-      }
-
-      let childNode = tagPath.inner;
-
-      if (childNode === changedNode) {
-        add(diffPath.node, reference, newValue);
-      } else if (childNode === newValue) {
-        add(diffPath.node, reference, buildStubNode(buildGapTag()));
-        expressions.unshift(buildStubNode(buildGapTag()));
-      } else if (childNode === deeperDestNode || childNode === deeperSourceNode) {
-        let newNode = createNode();
-        add(diffPath.node, reference, newNode);
-
-        diffPath = diffPath.push(newNode, btree.getSum(diffPath.node.children) - 2);
-        tagPath = TagPath.from(tagPath.innerPath, 0);
-        continue;
-      } else {
-        let htmlNode = nodeBindings.get(childNode);
-
-        if (htmlNode?.dataset.path.endsWith('$')) {
-          add(diffPath.node, reference, buildStubNode(buildGapTag()));
-          expressions.unshift(childNode);
-        } else {
-          add(diffPath.node, reference, childNode);
-        }
-      }
-    } else if (tag.type === EmbeddedNode) {
-      let reference = tagPath.previousSibling.tag;
-      add(diffPath.node, reference, tag.value);
-    } else if (tag.type === CloseNodeTag) {
-      diffPath.node.children = btree.push(diffPath.node.children, tag);
-    } else if (tag.type === OpenNodeTag) {
-      diffPath.node.children = btree.push(diffPath.node.children, tag);
-      diffPath.node.flags = tag.value.flags;
-      diffPath.node.type = tag.value.type;
-      diffPath.node.language = tag.value.language;
-      diffPath.node.attributes = tag.value.attributes;
-    }
-
-    if (!tagPath.nextSibling) {
-      tagPath = tagPath.nextUnshifted;
-      diffPath = diffPath.parent;
-    } else {
-      tagPath = tagPath.nextSibling;
-    }
-  }
-
-  return { source: sourceFromTokenStream(streamFromTree(rootDiffPath.node)), expressions };
-};
-
-const buildSetTemplate = (destHtmlNode, newValue) => {
-  let changedNode = nodeBindings.get(destHtmlNode);
-  let expressions = [];
-
-  let destAncestors = [...ancestors(destHtmlNode)].reverse();
-
-  let tagPath = TagPath.from(Path.from(nodeBindings.get(destAncestors[0])), 0);
-  let diffPath = Path.from(createNode());
-  let rootDiffPath = diffPath;
-
-  while (tagPath) {
-    let { tag, path } = tagPath;
-    let { depth } = path;
-    let deeperDestNode = nodeBindings.get(destAncestors[depth + 1]);
-
-    if (tag.type === GapTag) {
-      let reference = tagPath.previousSibling.tag;
-
-      if (reference.type === ShiftTag) {
-        throw new Error('umimplemented');
-      }
-
-      let childNode = tagPath.inner;
-
-      if (childNode === changedNode) {
-        add(diffPath.node, reference, newValue);
-      } else if (childNode === newValue) {
-        add(diffPath.node, reference, buildStubNode(buildGapTag()));
-        expressions.unshift(buildStubNode(buildGapTag()));
-      } else if (childNode === deeperDestNode) {
-        let newNode = createNode();
-        add(diffPath.node, reference, newNode);
-
-        diffPath = diffPath.push(newNode, btree.getSum(diffPath.node.children) - 2);
-        tagPath = TagPath.from(tagPath.innerPath, 0);
-        continue;
-      } else {
-        let htmlNode = nodeBindings.get(childNode);
-
-        if (htmlNode?.dataset.path.endsWith('$')) {
-          add(diffPath.node, reference, buildStubNode(buildGapTag()));
-          expressions.unshift(childNode);
-        } else {
-          add(diffPath.node, reference, childNode);
-        }
-      }
-    } else if (tag.type === EmbeddedNode) {
-      let reference = tagPath.previousSibling.tag;
-      add(diffPath.node, reference, tag.value);
-    } else if (tag.type === CloseNodeTag) {
-      diffPath.node.children = btree.push(diffPath.node.children, tag);
-    } else if (tag.type === OpenNodeTag) {
-      diffPath.node.children = btree.push(diffPath.node.children, tag);
-      diffPath.node.flags = tag.value.flags;
-      diffPath.node.type = tag.value.type;
-      diffPath.node.language = tag.value.language;
-      diffPath.node.attributes = tag.value.attributes;
-    }
-
-    if (!tagPath.nextSibling) {
-      tagPath = tagPath.nextUnshifted;
-      diffPath = diffPath.parent;
-    } else {
-      tagPath = tagPath.nextSibling;
-    }
-  }
-
-  return { source: sourceFromTokenStream(streamFromTree(rootDiffPath.node)), expressions };
-};
-
 export const getWidth = (node) => {
   if (isGapNode(node)) return 1;
   if (isNullNode(node)) return 0;
@@ -246,7 +103,7 @@ function Editor() {
 
   let matcher = spam`<$${buildString(language.canonicalURL)}:Expression />`;
 
-  let madness = () => {
+  let fragment = () => {
     let { expressions } = document();
 
     let tree = evaluateReturnSync(
@@ -354,7 +211,9 @@ function Editor() {
             selected() && store.editing && flags.token ? { contenteditable: true } : {};
 
           let draggable = () =>
-            selected() && store.selectionState === 'selected' ? { draggable: true } : {};
+            !store.editing && selected() && store.selectionState === 'selected'
+              ? { draggable: true }
+              : {};
 
           let dragging = () => selected() && !!store.dragTarget;
 
@@ -416,7 +275,150 @@ function Editor() {
       tagPath = tagPath.nextUnshifted;
     }
 
-    return stack;
+    return stack.value.fragment;
+  };
+
+  const doMove = (sourceHtmlNode, destHtmlNode) => {
+    let newValue = nodeBindings.get(sourceHtmlNode);
+    let changedNode = nodeBindings.get(destHtmlNode);
+    let expressions = [];
+
+    let destAncestors = [...ancestors(destHtmlNode)].reverse();
+    let sourceAncestors = [...ancestors(sourceHtmlNode)].reverse();
+
+    let tagPath = TagPath.from(Path.from(nodeBindings.get(destAncestors[0])), 0);
+    let diffPath = Path.from(createNode());
+    let rootDiffPath = diffPath;
+
+    while (tagPath) {
+      let { tag, path } = tagPath;
+      let { depth } = path;
+      let deeperSourceNode = nodeBindings.get(sourceAncestors[depth + 1]);
+      let deeperDestNode = nodeBindings.get(destAncestors[depth + 1]);
+
+      if (tag.type === GapTag) {
+        let reference = tagPath.previousSibling.tag;
+
+        if (reference.type === ShiftTag) {
+          throw new Error('umimplemented');
+        }
+
+        let childNode = tagPath.inner;
+
+        if (childNode === changedNode) {
+          add(diffPath.node, reference, newValue);
+        } else if (childNode === newValue) {
+          add(diffPath.node, reference, buildStubNode(buildGapTag()));
+          expressions.unshift(buildStubNode(buildGapTag()));
+        } else if (childNode === deeperDestNode || childNode === deeperSourceNode) {
+          let newNode = createNode();
+          add(diffPath.node, reference, newNode);
+
+          diffPath = diffPath.push(newNode, btree.getSum(diffPath.node.children) - 2);
+          tagPath = TagPath.from(tagPath.innerPath, 0);
+          continue;
+        } else {
+          let htmlNode = nodeBindings.get(childNode);
+
+          if (htmlNode?.dataset.path.endsWith('$')) {
+            add(diffPath.node, reference, buildStubNode(buildGapTag()));
+            expressions.unshift(childNode);
+          } else {
+            add(diffPath.node, reference, childNode);
+          }
+        }
+      } else if (tag.type === EmbeddedNode) {
+        let reference = tagPath.previousSibling.tag;
+        add(diffPath.node, reference, tag.value);
+      } else if (tag.type === CloseNodeTag) {
+        diffPath.node.children = btree.push(diffPath.node.children, tag);
+      } else if (tag.type === OpenNodeTag) {
+        diffPath.node.children = btree.push(diffPath.node.children, tag);
+        diffPath.node.flags = tag.value.flags;
+        diffPath.node.type = tag.value.type;
+        diffPath.node.language = tag.value.language;
+        diffPath.node.attributes = tag.value.attributes;
+      }
+
+      if (!tagPath.nextSibling) {
+        tagPath = tagPath.nextUnshifted;
+        diffPath = diffPath.parent;
+      } else {
+        tagPath = tagPath.nextSibling;
+      }
+    }
+
+    setDocument({ source: sourceFromTokenStream(streamFromTree(rootDiffPath.node)), expressions });
+  };
+
+  const doSet = (destHtmlNode, newValue) => {
+    let changedNode = nodeBindings.get(destHtmlNode);
+    let expressions = [];
+
+    let destAncestors = [...ancestors(destHtmlNode)].reverse();
+
+    let tagPath = TagPath.from(Path.from(nodeBindings.get(destAncestors[0])), 0);
+    let diffPath = Path.from(createNode());
+    let rootDiffPath = diffPath;
+
+    while (tagPath) {
+      let { tag, path } = tagPath;
+      let { depth } = path;
+      let deeperDestNode = nodeBindings.get(destAncestors[depth + 1]);
+
+      if (tag.type === GapTag) {
+        let reference = tagPath.previousSibling.tag;
+
+        if (reference.type === ShiftTag) {
+          throw new Error('umimplemented');
+        }
+
+        let childNode = tagPath.inner;
+
+        if (childNode === changedNode) {
+          add(diffPath.node, reference, newValue);
+        } else if (childNode === newValue) {
+          add(diffPath.node, reference, buildStubNode(buildGapTag()));
+          expressions.unshift(buildStubNode(buildGapTag()));
+        } else if (childNode === deeperDestNode) {
+          let newNode = createNode();
+          add(diffPath.node, reference, newNode);
+
+          diffPath = diffPath.push(newNode, btree.getSum(diffPath.node.children) - 2);
+          tagPath = TagPath.from(tagPath.innerPath, 0);
+          continue;
+        } else {
+          let htmlNode = nodeBindings.get(childNode);
+
+          if (htmlNode?.dataset.path.endsWith('$')) {
+            add(diffPath.node, reference, buildStubNode(buildGapTag()));
+            expressions.unshift(childNode);
+          } else {
+            add(diffPath.node, reference, childNode);
+          }
+        }
+      } else if (tag.type === EmbeddedNode) {
+        let reference = tagPath.previousSibling.tag;
+        add(diffPath.node, reference, tag.value);
+      } else if (tag.type === CloseNodeTag) {
+        diffPath.node.children = btree.push(diffPath.node.children, tag);
+      } else if (tag.type === OpenNodeTag) {
+        diffPath.node.children = btree.push(diffPath.node.children, tag);
+        diffPath.node.flags = tag.value.flags;
+        diffPath.node.type = tag.value.type;
+        diffPath.node.language = tag.value.language;
+        diffPath.node.attributes = tag.value.attributes;
+      }
+
+      if (!tagPath.nextSibling) {
+        tagPath = tagPath.nextUnshifted;
+        diffPath = diffPath.parent;
+      } else {
+        tagPath = tagPath.nextSibling;
+      }
+    }
+
+    setDocument({ source: sourceFromTokenStream(streamFromTree(rootDiffPath.node)), expressions });
   };
 
   const handlers = {
@@ -424,52 +426,82 @@ function Editor() {
       let tokenNode = nodeBindings.get(e.target);
 
       let oldDoubleClickTarget = store.doubleClickTarget;
+      let oldSelectedRange = selectedRange();
+      let isDoubleClick = oldDoubleClickTarget === e.target;
 
-      if (!oldDoubleClickTarget) {
+      if (!isDoubleClick) {
         setStore('doubleClickTarget', e.target);
 
-        const timeout = window.setTimeout(() => setStore('doubleClickTarget', null), 300);
-        setStore('doubleClickTimeout', timeout);
+        setStore(
+          'doubleClickTimeout',
+          window.setTimeout(() => {
+            if (store.doubleClickTimeout) window.clearTimeout(store.doubleClickTimeout);
+            setStore('doubleClickTarget', null);
+            setStore('doubleClickTimeout', null);
+          }, 300),
+        );
       } else {
+        window.clearTimeout(store.doubleClickTimeout);
+
         setStore('doubleClickTarget', null);
+        setStore('doubleClickTimeout', null);
       }
 
       // if (store.selectionState === 'selected') debugger;
       if (
         store.selectionState === 'selected' &&
         find((node) => node.draggable, ancestors(e.target)) &&
-        !oldDoubleClickTarget
+        !isDoubleClick
       ) {
         return;
       }
 
-      if ((oldDoubleClickTarget || !tokenNode) && !store.editing && !e.touches) {
+      if (!store.touchTimeout && oldDoubleClickTarget && !store.editing) {
         e.preventDefault();
       }
 
-      if (tokenNode) {
-        setSelectedRange([e.target, e.target]);
-      } else {
-        setSelectedRange([null, null]);
+      if (!store.editing && !store.touchTimeout) {
+        if (tokenNode) {
+          setSelectedRange([e.target, e.target]);
+        } else {
+          setSelectedRange([null, null]);
+        }
+        setStore('selectionState', 'selecting');
       }
-      setStore('selectionState', 'selecting');
 
       let selection = window.getSelection();
 
       let isEditModeClick =
-        store.editing &&
-        e.target.contentEditable &&
-        e.target === selection?.focusNode?.parentElement;
+        store.editing && e.target.contentEditable && e.target === selectedRange()[0];
 
       if (!isEditModeClick) {
-        if (store.editing) {
+        if (store.editing && !store.touchTimeout) {
+          const selected = oldSelectedRange;
+
+          if (selected[0] !== selected[1]) throw new Error();
+
+          let token = nodeBindings.get(selected[0]);
+
+          if (!token.flags.token) throw new Error();
+
+          doSet(
+            selected[0],
+            treeFromStream([
+              btree.getAt(0, token.children),
+              buildLiteralTag(selected[0].innerText),
+              btree.getAt(-1, token.children),
+            ]),
+          );
+
           setStore('editing', false);
         }
 
-        if (oldDoubleClickTarget && e.target === oldDoubleClickTarget) {
+        if (isDoubleClick) {
           let range = store.doubleClickRange;
 
-          setStore('editing', true);
+          if (!store.touchTimeout) {
+            setStore('editing', true);
+          }
           setStore('doubleClickRange', null);
 
           selection.removeAllRanges();
@@ -492,22 +524,41 @@ function Editor() {
       let tokenNode = nodeBindings.get(e.target);
 
       setStore('touchTarget', e.target);
+      setStore(
+        'touchTimeout',
+        window.setTimeout(() => {
+          if (store.touchTimeout) window.clearTimeout(store.touchTimeout);
+          setStore('touchTimeout', null);
+        }, 300),
+      );
 
       let oldDoubleTouchTarget = store.doubleTouchTarget;
+      let oldSelectedRange = selectedRange();
 
-      if (!oldDoubleTouchTarget) {
+      let isDoubleTouch = oldDoubleTouchTarget === e.target;
+
+      if (!isDoubleTouch) {
         setStore('doubleTouchTarget', e.target);
 
-        const timeout = window.setTimeout(() => setStore('doubleTouchTarget', null), 300);
-        setStore('doubleTouchTimeout', timeout);
+        setStore(
+          'doubleTouchTimeout',
+          window.setTimeout(() => {
+            if (store.doubleTouchTimeout) window.clearTimeout(store.doubleTouchTimeout);
+            setStore('doubleTouchTarget', null);
+            setStore('doubleTouchTimeout', null);
+          }, 300),
+        );
       } else {
+        window.clearTimeout(store.doubleTouchTimeout);
+
         setStore('doubleTouchTarget', null);
+        setStore('doubleTouchTimeout', null);
       }
 
       if (
         store.selectionState === 'selected' &&
         find((node) => node.draggable, ancestors(e.target)) &&
-        !oldDoubleTouchTarget
+        !isDoubleTouch
       ) {
         return;
       }
@@ -516,49 +567,52 @@ function Editor() {
       //   e.preventDefault();
       // }
 
-      if (tokenNode) {
-        setSelectedRange([e.target, e.target]);
-      } else {
-        setSelectedRange([null, null]);
+      if (!store.editing) {
+        if (tokenNode) {
+          setSelectedRange([e.target, e.target]);
+        } else {
+          setSelectedRange([null, null]);
+        }
+        setStore('selectionState', 'selecting');
       }
-      setStore('selectionState', 'selecting');
-
-      let selection = window.getSelection();
 
       let isEditModeTouch =
-        store.editing &&
-        e.target.contentEditable &&
-        e.target === selection?.focusNode?.parentElement;
+        store.editing && e.target.contentEditable && e.target === selectedRange()[0];
 
       if (!isEditModeTouch) {
         if (store.editing) {
+          const selected = oldSelectedRange;
+
+          if (selected[0] !== selected[1]) throw new Error();
+
+          let token = nodeBindings.get(selected[0]);
+
+          if (!token.flags.token) throw new Error();
+
+          doSet(
+            selected[0],
+            treeFromStream([
+              btree.getAt(0, token.children),
+              buildLiteralTag(selected[0].innerText),
+              btree.getAt(-1, token.children),
+            ]),
+          );
+
           setStore('editing', false);
         }
 
-        if (oldDoubleTouchTarget && e.target === oldDoubleTouchTarget) {
-          let range = store.doubleTouchRange;
-
+        if (isDoubleTouch) {
           setStore('editing', true);
-          setStore('doubleTouchRange', null);
-
-          selection.removeAllRanges();
-          if (range) selection.addRange(range);
 
           // e.preventDefault();
-        } else {
-          window.setTimeout(() => {
-            if (store.doubleTouchTarget) {
-              let range = selection.rangeCount ? selection.getRangeAt(0) : null;
-              selection.removeAllRanges();
-              if (range) range.collapse();
-              setStore('doubleTouchRange', range);
-            }
-          });
         }
       }
     },
     onMouseOver: (e) => {
-      if (store.touchTarget) return;
+      if (store.touchTimeout) {
+        e.preventDefault();
+        return;
+      }
 
       if (store.selectionState === 'selecting') {
         let tokenNode = nodeBindings.get(e.target);
@@ -589,6 +643,14 @@ function Editor() {
       }
     },
     onTouchMove: (e) => {
+      setStore(
+        'touchTimeout',
+        window.setTimeout(() => {
+          if (store.touchTimeout) window.clearTimeout(store.touchTimeout);
+          setStore('touchTimeout', null);
+        }, 300),
+      );
+
       if (e.touches.length === 1) {
         let touch = e.touches[0];
 
@@ -641,15 +703,13 @@ function Editor() {
 
         if (!token.flags.token) throw new Error();
 
-        setDocument(
-          buildSetTemplate(
-            selected[0],
-            treeFromStream([
-              btree.getAt(0, token.children),
-              buildLiteralTag(e.target.innerText),
-              btree.getAt(-1, token.children),
-            ]),
-          ),
+        doSet(
+          selected[0],
+          treeFromStream([
+            btree.getAt(0, token.children),
+            buildLiteralTag(selected[0].innerText),
+            btree.getAt(-1, token.children),
+          ]),
         );
 
         setStore('editing', false);
@@ -657,7 +717,10 @@ function Editor() {
       }
     },
     onMouseOut: (e) => {
-      if (store.touchTarget) return;
+      if (store.touchTimeout) {
+        e.preventDefault();
+        return;
+      }
       if (store.selectionState === 'selecting') {
         let token = nodeBindings.get(e.target);
         if (!token) {
@@ -666,7 +729,9 @@ function Editor() {
       }
     },
     onMouseUp: (e) => {
-      if (store.touchTarget) return;
+      if (store.touchTimeout) {
+        return;
+      }
       setStore('selectionState', selectedRange() ? 'selected' : 'none');
 
       if (e.target !== store.doubleClickTarget) {
@@ -678,16 +743,17 @@ function Editor() {
     },
 
     onTouchEnd: (e) => {
+      setStore(
+        'touchTimeout',
+        window.setTimeout(() => {
+          if (store.touchTimeout) window.clearTimeout(store.touchTimeout);
+          setStore('touchTimeout', null);
+        }, 300),
+      );
+
       setStore('touchTarget', null);
 
       setStore('selectionState', selectedRange() ? 'selected' : 'none');
-
-      if (e.target !== store.doubleTouchTarget) {
-        window.clearTimeout(store.doubleTouchTimeout);
-
-        setStore('doubleTouchTarget', null);
-        setStore('doubleTouchTimeout', null);
-      }
     },
     onDragStart: (e) => {
       let clone = e.target.cloneNode(true);
@@ -705,11 +771,12 @@ function Editor() {
       }
     },
     onDragEnd: (e) => {
-      setStore('dragTarget', null);
+      if (store.dragTarget) {
+        setStore('dragTarget', null);
+        setStore('doubleClickTarget', null);
 
-      setStore('doubleClickTarget', null);
-
-      window.document.getElementById('dragShadow').remove();
+        window.document.getElementById('dragShadow').remove();
+      }
     },
     onDrop: (e) => {
       let tokenNode = nodeBindings.get(e.target);
@@ -719,16 +786,16 @@ function Editor() {
       if (isGapNode(tokenNode)) {
         let { dragTarget } = store;
 
-        setDocument(buildMoveTemplate(dragTarget, e.target));
+        doMove(dragTarget, e.target);
 
         dragTarget.parentNode.removeChild(dragTarget);
-
-        e.target.replaceWith(dragTarget);
 
         setStore('dragTarget', null);
         setStore('doubleClickTarget', null);
 
         window.document.getElementById('dragShadow').remove();
+
+        e.target.replaceWith(dragTarget);
       }
     },
   };
@@ -751,7 +818,7 @@ function Editor() {
         onDragEnd={handlers.onDragEnd}
         onDrop={handlers.onDrop}
       >
-        {madness().value.fragment}
+        {fragment()}
       </div>
     </>
   );
