@@ -77,7 +77,19 @@ function ContextPane() {
               highlighted: highlighted(),
             })}
           >
-            <a class="reference">{printReferenceTag(reference)}</a>{' '}
+            <a
+              class="reference"
+              onClick={() => {
+                let isSyntactic = !node.flags.hasGap && !reference.value.flags.hasGap;
+                if (!isSyntactic) {
+                  let htmlNode = nodeBindings.get(node);
+                  setIsOuter(false);
+                  setSelectedRange([htmlNode, htmlNode]);
+                }
+              }}
+            >
+              {printReferenceTag(reference)}
+            </a>{' '}
             <span
               class="node"
               onClick={() => {
@@ -104,7 +116,17 @@ function ContextPane() {
     <>
       <div class="context-pane">
         <Show when={paneRoot() && !isGap()}>
-          <a class="property-name">
+          <a
+            class="property-name"
+            onClick={() => {
+              if (isOuter()) {
+                let htmlNode = nodeBindings.get(paneRoot());
+                setSelectedRange(htmlNode, htmlNode);
+              } else {
+                setIsOuter(true);
+              }
+            }}
+          >
             {() => paneRoot() && nodeBindings.get(paneRoot()).dataset.path}:
           </a>
           <div
