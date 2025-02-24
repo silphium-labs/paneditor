@@ -22,7 +22,9 @@ function ContextPane() {
   let paneRoot = () => {
     const root = selectionRoot();
 
-    return root && (isOuter() ? nodeBindings.get(nodeBindings.get(root).parentNode) : root);
+    let parentNode = root && nodeBindings.get(root).parentNode;
+
+    return root && (isOuter() ? parentNode && nodeBindings.get(parentNode) : root);
   };
 
   let isGap = () => paneRoot() && isGapNode(paneRoot());
