@@ -119,12 +119,10 @@ function ContextPane() {
           <a
             class="property-name"
             onClick={() => {
-              if (isOuter()) {
-                let htmlNode = nodeBindings.get(paneRoot());
-                setSelectedRange(htmlNode, htmlNode);
-              } else {
-                setIsOuter(true);
-              }
+              let htmlNode = nodeBindings.get(paneRoot());
+
+              setSelectedRange([htmlNode, htmlNode]);
+              setIsOuter(true);
             }}
           >
             {() => paneRoot() && nodeBindings.get(paneRoot()).dataset.path}:
