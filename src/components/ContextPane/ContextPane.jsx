@@ -7,7 +7,7 @@ import {
   printReferenceTag,
   printType,
 } from '@bablr/agast-helpers/print';
-import { isGapNode } from '@bablr/agast-helpers/path';
+import { isGapNode, isNullNode } from '@bablr/agast-helpers/path';
 
 import './ContextPane.css';
 import { getCooked, printString } from '@bablr/agast-helpers/tree';
@@ -75,6 +75,19 @@ function ContextPane() {
           );
         };
 
+        let nodeFrag = isNullNode(node) ? (
+          'null'
+        ) : isGapNode(node) ? (
+          '<//>'
+        ) : (
+          <>
+            &lt;
+            {printNodeFlags(node.flags)}
+            {node.type?.description}
+            {intrinsicFrag} &gt;
+          </>
+        );
+
         return (
           <div
             class={classNames({
@@ -108,10 +121,7 @@ function ContextPane() {
                 e.preventDefault();
               }}
             >
-              &lt;
-              {printNodeFlags(node.flags)}
-              {node.type?.description}
-              {intrinsicFrag} /&gt;
+              {nodeFrag}
             </span>
           </div>
         );
