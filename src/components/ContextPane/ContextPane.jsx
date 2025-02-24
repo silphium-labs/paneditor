@@ -17,7 +17,11 @@ function ContextPane() {
   let { selectionRoot, selectedRange, setSelectedRange } = useContext(SelectionContext);
   let { widths } = useContext(EditContext);
 
-  let { 0: isOuter, 1: setIsOuter } = createSignal(false);
+  let { 0: isOuter_, 1: setIsOuter } = createSignal(false);
+
+  let isOuter = () => {
+    return isOuter_() && nodeBindings.has(nodeBindings.get(selectionRoot()).parentNode);
+  };
 
   let paneRoot = () => {
     const root = selectionRoot();
