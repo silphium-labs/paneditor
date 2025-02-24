@@ -213,6 +213,14 @@ function Editor() {
               return selectionRoot() === doneFrame.node;
             };
 
+            let highlighted = () => {
+              return (
+                !selected() &&
+                selectedRange()[0] === selectedRange()[1] &&
+                nodeBindings.get(selectedRange()[0]) === doneFrame.node
+              );
+            };
+
             let contentEditable = () =>
               selected() && store.editing && flags.token ? { contenteditable: true } : {};
 
@@ -235,6 +243,7 @@ function Editor() {
                   trivia: reference.value.name === '#',
                   hasGap: flags.hasGap,
                   selected: selected(),
+                  highlighted: highlighted(),
                   dragging: dragging(),
                 })}
               >
@@ -442,6 +451,11 @@ function Editor() {
         find((node) => node.draggable, ancestors(e.target)) &&
         !isDoubleClick
       ) {
+        if (tokenNode) {
+          setSelectedRange([e.target, e.target]);
+        } else {
+          setSelectedRange([null, null]);
+        }
         return;
       }
 
