@@ -81,11 +81,11 @@ function ContextPane() {
               class="reference"
               onClick={() => {
                 let isSyntactic = !node.flags.hasGap && !reference.value.flags.hasGap;
-                if (!isSyntactic) {
-                  let htmlNode = nodeBindings.get(node);
-                  setIsOuter(false);
-                  setSelectedRange([htmlNode, htmlNode]);
-                }
+                let htmlNode = nodeBindings.get(node);
+
+                setSelectedRange([htmlNode, htmlNode]);
+
+                setIsOuter(false);
               }}
             >
               {printReferenceTag(reference)}
