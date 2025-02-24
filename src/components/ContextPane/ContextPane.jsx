@@ -84,7 +84,7 @@ function ContextPane() {
             &lt;
             {printNodeFlags(node.flags)}
             {node.type?.description}
-            {intrinsicFrag} &gt;
+            {intrinsicFrag} /&gt;
           </>
         );
 
