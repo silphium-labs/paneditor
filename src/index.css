@@ -20,8 +20,9 @@ a {
   color: #afab9d;
   text-decoration: underline;
 }
+
 a:hover {
-  color: blue;
+  color: #79735d;
 }
 
 body {

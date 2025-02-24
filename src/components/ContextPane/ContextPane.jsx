@@ -79,31 +79,32 @@ function ContextPane() {
           >
             <a
               class="reference"
-              onClick={() => {
-                let isSyntactic = !node.flags.hasGap && !reference.value.flags.hasGap;
+              onClick={(e) => {
                 let htmlNode = nodeBindings.get(node);
 
                 setSelectedRange([htmlNode, htmlNode]);
 
                 setIsOuter(false);
+                e.preventDefault();
               }}
             >
               {printReferenceTag(reference)}
             </a>{' '}
             <span
               class="node"
-              onClick={() => {
+              onClick={(e) => {
                 let htmlNode = nodeBindings.get(node);
 
                 let isSyntactic = !node.flags.hasGap && !reference.value.flags.hasGap;
 
                 setSelectedRange([htmlNode, htmlNode]);
                 setIsOuter(!isSyntactic);
+                e.preventDefault();
               }}
             >
               &lt;
               {printNodeFlags(node.flags)}
-              {node.type.description}
+              {node.type?.description}
               {intrinsicFrag} /&gt;
             </span>
           </div>
@@ -118,22 +119,24 @@ function ContextPane() {
         <Show when={paneRoot() && !isGap()}>
           <a
             class="property-name"
-            onClick={() => {
+            onClick={(e) => {
               let htmlNode = nodeBindings.get(paneRoot());
 
               setSelectedRange([htmlNode, htmlNode]);
               setIsOuter(true);
+              e.preventDefault();
             }}
           >
             {() => paneRoot() && nodeBindings.get(paneRoot()).dataset.path}:
           </a>
           <div
             class={classNames({ title: true, selected: !isOuter() })}
-            onClick={() => {
+            onClick={(e) => {
               let htmlNode = nodeBindings.get(paneRoot());
 
               setSelectedRange([htmlNode, htmlNode]);
               setIsOuter(false);
+              e.preventDefault();
             }}
           >
             {'<'}
