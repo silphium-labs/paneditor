@@ -451,10 +451,14 @@ function Editor() {
         find((node) => node.draggable, ancestors(e.target)) &&
         !isDoubleClick
       ) {
-        if (tokenNode) {
-          setSelectedRange([e.target, e.target]);
-        } else {
-          setSelectedRange([null, null]);
+        let isSyntactic =
+          !nodeBindings.get(e.target).flags.hasGap && !e.target.dataset.path.endsWith('$');
+        if (isSyntactic) {
+          if (tokenNode) {
+            setSelectedRange([e.target, e.target]);
+          } else {
+            setSelectedRange([null, null]);
+          }
         }
         return;
       }
