@@ -565,6 +565,15 @@ function Editor() {
         find((node) => node.draggable, ancestors(e.target)) &&
         !isDoubleTouch
       ) {
+        let isSyntactic =
+          !nodeBindings.get(e.target).flags.hasGap && !e.target.dataset.path.endsWith('$');
+        if (isSyntactic && nodeBindings.get(e.target.parentNode) === selectionRoot()) {
+          if (tokenNode) {
+            setSelectedRange([e.target, e.target]);
+          } else {
+            setSelectedRange([null, null]);
+          }
+        }
         return;
       }
 
