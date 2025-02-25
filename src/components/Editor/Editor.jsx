@@ -46,6 +46,7 @@ import {
   GapTag,
   EmbeddedNode,
   ShiftTag,
+  node,
 } from '@bablr/agast-helpers/symbols';
 import { debugEnhancers } from '@bablr/helpers/enhancers';
 
@@ -71,6 +72,8 @@ function* ancestors(node) {
 }
 
 const computeStartPos = (node, widths) => {};
+
+let matcher = spam`<$${buildString(language.canonicalURL)}:Expression />`;
 
 export const getWidth = (node) => {
   if (isGapNode(node)) return 1;
@@ -109,6 +112,7 @@ function Editor() {
   let { document, setDocument } = useContext(DocumentContext);
   let { store, setStore } = useContext(StoreContext);
   let { widths, editStates } = useContext(EditContext);
+  let bablrContext = useContext(BABLRContext);
 
   createEffect(() => {
     if (!store.editing) {
@@ -296,12 +300,20 @@ function Editor() {
         }
 
         let childNode = tagPath.inner;
+        let childHtmlNode = nodeBindings.get(childNode);
 
         if (childNode === changedNode) {
+          // dest
+
+          nodeBindings.delete(newValue);
+
           add(diffPath.node, reference, newValue);
         } else if (childNode === newValue) {
+          // source
+          let newStub = buildStubNode(buildGapTag());
+
           add(diffPath.node, reference, buildStubNode(buildGapTag()));
-          expressions.unshift(buildStubNode(buildGapTag()));
+          expressions.unshift(newStub);
         } else if (childNode === deeperDestNode || childNode === deeperSourceNode) {
           let newNode = createNode();
           add(diffPath.node, reference, newNode);
@@ -340,7 +352,19 @@ function Editor() {
       }
     }
 
-    setDocument({ source: sourceFromTokenStream(streamFromTree(rootDiffPath.node)), expressions });
+    let tree = evaluateReturnSync(
+      evaluateIO(() =>
+        streamParse(
+          bablrContext,
+          matcher,
+          sourceFromTokenStream(streamFromTree(rootDiffPath.node)),
+          {},
+          { expressions, emitEffects: true, enhancers: debugEnhancers },
+        ),
+      ),
+    );
+
+    setDocument(tree);
   };
 
   const doSet = (destHtmlNode, newValue) => {
