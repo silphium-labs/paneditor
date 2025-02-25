@@ -1,5 +1,5 @@
 import { createSignal, createMemo } from 'solid-js';
-import { Context as BABLRContext } from 'bablr';
+import { Context as BABLRContext, streamParse } from 'bablr';
 import * as language from '@bablr/language-en-cstml-json';
 import Editor from '../Editor/Editor.jsx';
 import ContextPane from '../ContextPane/ContextPane.jsx';
@@ -13,6 +13,13 @@ import {
 
 import './Environment.css';
 import { embeddedSourceFrom } from '@bablr/helpers/source';
+import { debugEnhancers } from '@bablr/helpers/enhancers';
+import { evaluateReturnSync } from '@bablr/agast-helpers/tree';
+import { evaluateIO } from '@bablr/io-vm-web';
+import { spam } from '@bablr/boot';
+import { buildString } from '@bablr/helpers/builders';
+
+let matcher = spam`<$${buildString(language.canonicalURL)}:Expression />`;
 
 const getPath = (node) => {
   let node_ = node;
@@ -54,10 +61,27 @@ const defaultDocument = {
 function Environment() {
   const bablrContext = BABLRContext.from(language);
   const [selectedRange, setSelectedRange] = createSignal([null, null]);
-  const [document, setDocument] = createSignal(defaultDocument);
+  const [document, setDocument] = createSignal(
+    evaluateReturnSync(
+      evaluateIO(() =>
+        streamParse(
+          bablrContext,
+          matcher,
+          defaultDocument.source,
+          {},
+          {
+            expressions: defaultDocument.expressions,
+            emitEffects: true,
+            enhancers: debugEnhancers,
+          },
+        ),
+      ),
+    ),
+  );
 
   const selectionRoot = createMemo(() => {
     const range = selectedRange();
+    const doc = document();
 
     if (!range[0] || !range[1]) return null;
 

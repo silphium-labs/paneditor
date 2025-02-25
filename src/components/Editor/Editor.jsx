@@ -3,7 +3,14 @@
 import emptyStack from '@iter-tools/imm-stack';
 import joinWith from 'iter-tools-es/methods/join-with';
 import find from 'iter-tools-es/methods/find';
-import { createEffect, createRoot, useContext, runWithOwner, getOwner } from 'solid-js';
+import {
+  createEffect,
+  createRoot,
+  useContext,
+  runWithOwner,
+  getOwner,
+  createSignal,
+} from 'solid-js';
 import { streamParse } from 'bablr';
 import { spam } from '@bablr/boot';
 import * as language from '@bablr/language-en-cstml-json';
@@ -45,6 +52,8 @@ import { debugEnhancers } from '@bablr/helpers/enhancers';
 import './Editor.css';
 import { sourceFromTokenStream } from '@bablr/helpers/source';
 import { buildString } from '@bablr/helpers/builders';
+
+let setNodeSignals = new WeakMap();
 
 // TODO this is a horrible horrible hack
 // we need to manage ownership better to keep the nodes alive only as long as they are really used
@@ -100,7 +109,6 @@ function Editor() {
   let { document, setDocument } = useContext(DocumentContext);
   let { store, setStore } = useContext(StoreContext);
   let { widths, editStates } = useContext(EditContext);
-  let bablrContext = useContext(BABLRContext);
 
   createEffect(() => {
     if (!store.editing) {
@@ -108,26 +116,10 @@ function Editor() {
     }
   });
 
-  let matcher = spam`<$${buildString(language.canonicalURL)}:Expression />`;
-
   let fragment = () => {
-    let { expressions } = document();
-
-    let tree = evaluateReturnSync(
-      evaluateIO(() =>
-        streamParse(
-          bablrContext,
-          matcher,
-          document().source,
-          {},
-          { expressions, emitEffects: true, enhancers: debugEnhancers },
-        ),
-      ),
-    );
-
     let stack = emptyStack.push({ type: null, node: null, fragment: null });
 
-    let tagPath = TagPath.from(Path.from(tree), 0);
+    let tagPath = TagPath.from(Path.from(document()), 0);
 
     while (tagPath) {
       let { tag, path } = tagPath;
@@ -199,30 +191,30 @@ function Editor() {
         let fragment;
 
         if (path.depth) {
-          let { flags } = doneFrame.node;
-
           let { reference } = path;
+
+          let { 0: node, 1: setNode } = createSignal(doneFrame.node);
 
           let span = runWithOwner(solidRoot, () => {
             let referenceAttributes = {
-              'data-type': doneFrame.node?.type.description,
+              'data-type': node()?.type.description,
               'data-path': printReferenceTag(reference).slice(0, -1),
             };
 
             let selected = () => {
-              return selectionRoot() === doneFrame.node;
+              return selectionRoot() === node();
             };
 
             let highlighted = () => {
               return (
                 !selected() &&
                 selectedRange()[0] === selectedRange()[1] &&
-                nodeBindings.get(selectedRange()[0]) === doneFrame.node
+                nodeBindings.get(selectedRange()[0]) === node()
               );
             };
 
             let contentEditable = () =>
-              selected() && store.editing && flags.token ? { contenteditable: true } : {};
+              selected() && store.editing && node().flags.token ? { contenteditable: true } : {};
 
             let draggable = () =>
               !store.editing && selected() && store.selectionState === 'selected'
@@ -239,9 +231,9 @@ function Editor() {
                 class={classNames({
                   node: true,
                   escape: reference.value.name === '@',
-                  token: flags.token,
+                  token: node().flags.token,
                   trivia: reference.value.name === '#',
-                  hasGap: flags.hasGap,
+                  hasGap: node().flags.hasGap,
                   selected: selected(),
                   highlighted: highlighted(),
                   dragging: dragging(),
@@ -254,6 +246,7 @@ function Editor() {
 
           nodeBindings.set(doneFrame.node, span);
           nodeBindings.set(span, doneFrame.node);
+          setNodeSignals.set(span, setNode);
           widths.set(doneFrame.node, getWidth(doneFrame.node));
 
           fragment = span;
@@ -352,7 +345,6 @@ function Editor() {
 
   const doSet = (destHtmlNode, newValue) => {
     let changedNode = nodeBindings.get(destHtmlNode);
-    let expressions = [];
 
     let destAncestors = [...ancestors(destHtmlNode)].reverse();
 
@@ -363,9 +355,9 @@ function Editor() {
     while (tagPath) {
       let { tag, path } = tagPath;
       let { depth } = path;
-      let deeperDestNode = nodeBindings.get(destAncestors[depth + 1]);
 
       if (tag.type === GapTag) {
+        let deeperDestNode = nodeBindings.get(destAncestors[depth + 1]);
         let reference = tagPath.previousSibling.tag;
 
         if (reference.type === ShiftTag) {
@@ -376,9 +368,9 @@ function Editor() {
 
         if (childNode === changedNode) {
           add(diffPath.node, reference, newValue);
-        } else if (childNode === newValue) {
-          add(diffPath.node, reference, buildStubNode(buildGapTag()));
-          expressions.unshift(buildStubNode(buildGapTag()));
+          nodeBindings.set(destHtmlNode, newValue);
+          nodeBindings.set(newValue, destHtmlNode);
+          setNodeSignals.get(destHtmlNode)(newValue);
         } else if (childNode === deeperDestNode) {
           let newNode = createNode();
           add(diffPath.node, reference, newNode);
@@ -390,8 +382,7 @@ function Editor() {
           let htmlNode = nodeBindings.get(childNode);
 
           if (htmlNode?.dataset.path.endsWith('$')) {
-            add(diffPath.node, reference, buildStubNode(buildGapTag()));
-            expressions.unshift(childNode);
+            add(diffPath.node, reference, childNode);
           } else {
             add(diffPath.node, reference, childNode);
           }
@@ -410,6 +401,11 @@ function Editor() {
       }
 
       if (!tagPath.nextSibling) {
+        let destNode = destAncestors[path.depth];
+        nodeBindings.set(diffPath.node, destNode);
+        nodeBindings.set(destNode, diffPath.node);
+        setNodeSignals.get(destNode)(diffPath.node);
+
         tagPath = tagPath.nextUnshifted;
         diffPath = diffPath.parent;
       } else {
@@ -417,7 +413,7 @@ function Editor() {
       }
     }
 
-    setDocument({ source: sourceFromTokenStream(streamFromTree(rootDiffPath.node)), expressions });
+    setDocument(rootDiffPath.node);
   };
 
   const handlers = {
@@ -453,7 +449,7 @@ function Editor() {
       ) {
         let isSyntactic =
           !nodeBindings.get(e.target).flags.hasGap && !e.target.dataset.path.endsWith('$');
-        if (isSyntactic) {
+        if (isSyntactic && nodeBindings.get(e.target.parentNode) === selectionRoot()) {
           if (tokenNode) {
             setSelectedRange([e.target, e.target]);
           } else {
