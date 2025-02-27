@@ -442,116 +442,116 @@ function Editor() {
   };
 
   const handlers = {
-    // onMouseDown: (e) => {
-    //   let tokenNode = nodeBindings.get(e.target);
+    onMouseDown: (e) => {
+      let tokenNode = nodeBindings.get(e.target);
 
-    //   let oldDoubleClickTarget = store.doubleClickTarget;
-    //   let oldSelectedRange = selectedRange();
-    //   let isDoubleClick = oldDoubleClickTarget === e.target;
+      let oldDoubleClickTarget = store.doubleClickTarget;
+      let oldSelectedRange = selectedRange();
+      let isDoubleClick = oldDoubleClickTarget === e.target;
 
-    //   if (store.doubleClickTimeout) window.clearTimeout(store.doubleClickTimeout);
+      if (store.doubleClickTimeout) window.clearTimeout(store.doubleClickTimeout);
 
-    //   if (!isDoubleClick) {
-    //     setStore('doubleClickTarget', e.target);
+      if (!isDoubleClick) {
+        setStore('doubleClickTarget', e.target);
 
-    //     setStore(
-    //       'doubleClickTimeout',
-    //       window.setTimeout(() => {
-    //         setStore('doubleClickTarget', null);
-    //         setStore('doubleClickTimeout', null);
-    //       }, 300),
-    //     );
-    //   } else {
-    //     setStore('doubleClickTarget', null);
-    //     setStore('doubleClickTimeout', null);
-    //   }
+        setStore(
+          'doubleClickTimeout',
+          window.setTimeout(() => {
+            setStore('doubleClickTarget', null);
+            setStore('doubleClickTimeout', null);
+          }, 300),
+        );
+      } else {
+        setStore('doubleClickTarget', null);
+        setStore('doubleClickTimeout', null);
+      }
 
-    //   // if (store.selectionState === 'selected') debugger;
-    //   if (
-    //     store.selectionState === 'selected' &&
-    //     find((node) => node.draggable, ancestors(e.target)) &&
-    //     !isDoubleClick
-    //   ) {
-    //     let isSyntactic =
-    //       !nodeBindings.get(e.target).flags.hasGap && !e.target.dataset.path.endsWith('$');
-    //     if (isSyntactic && nodeBindings.get(e.target.parentNode) === selectionRoot()) {
-    //       if (tokenNode) {
-    //         setSelectedRange([e.target, e.target]);
-    //       } else {
-    //         setSelectedRange([null, null]);
-    //       }
-    //     }
-    //     return;
-    //   }
+      // if (store.selectionState === 'selected') debugger;
+      if (
+        store.selectionState === 'selected' &&
+        find((node) => node.draggable, ancestors(e.target)) &&
+        !isDoubleClick
+      ) {
+        let isSyntactic =
+          !nodeBindings.get(e.target).flags.hasGap && !e.target.dataset.path.endsWith('$');
+        if (isSyntactic && nodeBindings.get(e.target.parentNode) === selectionRoot()) {
+          if (tokenNode) {
+            setSelectedRange([e.target, e.target]);
+          } else {
+            setSelectedRange([null, null]);
+          }
+        }
+        return;
+      }
 
-    //   if (!store.touchTimeout && oldDoubleClickTarget && !store.editing) {
-    //     e.preventDefault();
-    //   }
+      if (!store.touchTimeout && oldDoubleClickTarget && !store.editing) {
+        e.preventDefault();
+      }
 
-    //   let selection = window.getSelection();
+      let selection = window.getSelection();
 
-    //   let isEditModeClick =
-    //     store.editing && e.target.contentEditable && e.target === selectedRange()[0];
+      let isEditModeClick =
+        store.editing && e.target.contentEditable && e.target === selectedRange()[0];
 
-    //   if (!isEditModeClick) {
-    //     if (!store.touchTimeout) {
-    //       if (tokenNode) {
-    //         setSelectedRange([e.target, e.target]);
-    //       } else {
-    //         setSelectedRange([null, null]);
-    //       }
-    //       setStore('selectionState', 'selecting');
-    //     }
+      if (!isEditModeClick) {
+        if (!store.touchTimeout) {
+          if (tokenNode) {
+            setSelectedRange([e.target, e.target]);
+          } else {
+            setSelectedRange([null, null]);
+          }
+          setStore('selectionState', 'selecting');
+        }
 
-    //     if (store.editing && !store.touchTimeout) {
-    //       const selected = oldSelectedRange;
+        if (store.editing && !store.touchTimeout) {
+          const selected = oldSelectedRange;
 
-    //       if (selected[0] !== selected[1]) throw new Error();
+          if (selected[0] !== selected[1]) throw new Error();
 
-    //       let token = nodeBindings.get(selected[0]);
+          let token = nodeBindings.get(selected[0]);
 
-    //       if (!token.flags.token) throw new Error();
+          if (!token.flags.token) throw new Error();
 
-    //       // this prevents you double clicking on a different node to enter its edit mode
-    //       // as you leave your edit mode, the target changes
-    //       setDocument(
-    //         doSet(
-    //           selected[0],
-    //           treeFromStream([
-    //             btree.getAt(0, token.children),
-    //             buildLiteralTag(selected[0].innerText),
-    //             btree.getAt(-1, token.children),
-    //           ]),
-    //         ),
-    //       );
+          // this prevents you double clicking on a different node to enter its edit mode
+          // as you leave your edit mode, the target changes
+          setDocument(
+            doSet(
+              selected[0],
+              treeFromStream([
+                btree.getAt(0, token.children),
+                buildLiteralTag(selected[0].innerText),
+                btree.getAt(-1, token.children),
+              ]),
+            ),
+          );
 
-    //       setStore('editing', false);
-    //     }
+          setStore('editing', false);
+        }
 
-    //     if (isDoubleClick) {
-    //       let range = store.doubleClickRange;
+        if (isDoubleClick) {
+          let range = store.doubleClickRange;
 
-    //       if (!store.touchTimeout && tokenNode && !isGapNode(tokenNode)) {
-    //         setStore('editing', true);
-    //       }
-    //       setStore('doubleClickRange', null);
+          if (!store.touchTimeout && tokenNode && !isGapNode(tokenNode)) {
+            setStore('editing', true);
+          }
+          setStore('doubleClickRange', null);
 
-    //       selection.removeAllRanges();
-    //       if (range) selection.addRange(range);
+          selection.removeAllRanges();
+          if (range) selection.addRange(range);
 
-    //       e.preventDefault();
-    //     } else {
-    //       window.setTimeout(() => {
-    //         if (store.doubleClickTarget) {
-    //           let range = selection.rangeCount ? selection.getRangeAt(0) : null;
-    //           selection.removeAllRanges();
-    //           if (range) range.collapse();
-    //           setStore('doubleClickRange', range);
-    //         }
-    //       });
-    //     }
-    //   }
-    // },
+          e.preventDefault();
+        } else {
+          window.setTimeout(() => {
+            if (store.doubleClickTarget) {
+              let range = selection.rangeCount ? selection.getRangeAt(0) : null;
+              selection.removeAllRanges();
+              if (range) range.collapse();
+              setStore('doubleClickRange', range);
+            }
+          });
+        }
+      }
+    },
     onTouchStart: (e) => {
       let tokenNode = nodeBindings.get(e.target);
 
