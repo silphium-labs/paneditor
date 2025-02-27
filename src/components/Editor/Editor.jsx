@@ -525,6 +525,8 @@ function Editor() {
             ),
           );
 
+          setSelectedRange([...selectedRange()]);
+
           setStore('editing', false);
         }
 
@@ -754,6 +756,8 @@ function Editor() {
             btree.getAt(-1, token.children),
           ]),
         );
+
+        setSelectedRange([...selectedRange()]);
 
         setStore('editing', false);
         e.preventDefault();
