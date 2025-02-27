@@ -480,6 +480,9 @@ function Editor() {
           } else {
             setSelectedRange([null, null]);
           }
+        } else {
+          let htmlNode = nodeBindings.get(selectionRoot());
+          setSelectedRange([htmlNode, htmlNode]);
         }
         return;
       }
@@ -602,6 +605,9 @@ function Editor() {
           } else {
             setSelectedRange([null, null]);
           }
+        } else {
+          let htmlNode = nodeBindings.get(selectionRoot());
+          setSelectedRange([htmlNode, htmlNode]);
         }
         return;
       }
