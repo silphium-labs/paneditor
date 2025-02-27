@@ -15,7 +15,7 @@
     "@bablr/io-vm-web": "0.3.1",
     "@bablr/language-en-cstml-json": "0.1.0",
     "@iter-tools/imm-stack": "1.1.0",
-    "bablr": "0.7.1",
+    "bablr": "0.7.2",
     "classnames": "2.5.1",
     "drag-drop-touch": "github:drag-drop-touch-js/dragdroptouch#07edc6d96c029dd83e98c09b8128816bf1438511",
     "iter-tools-es": "7.5.3",

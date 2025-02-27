@@ -169,12 +169,14 @@ function Editor() {
         let { node: ownNode, reference } = path;
 
         // prettier-ignore
-        let span = (
-          <span
-            class={classNames({ node: true, gap: true, selected: selectionRoot() === ownNode })}
-            data-path={printReferenceTag(reference).slice(0, -1)}
-          >&nbsp;&nbsp;</span>
-        );
+        let span = runWithOwner(solidRoot, () => {
+          return (
+            <span
+              class={classNames({ node: true, gap: true, selected: selectionRoot() === ownNode })}
+              data-path={printReferenceTag(reference).slice(0, -1)}
+            >&nbsp;&nbsp;</span>
+          );
+        });
 
         nodeBindings.set(ownNode, span);
         nodeBindings.set(span, ownNode);
@@ -225,7 +227,7 @@ function Editor() {
                 ? { draggable: true }
                 : {};
 
-            let dragging = () => selected() && !!store.dragTarget;
+            let dragging = () => selected() && !!store.dragSource;
 
             return (
               <span
@@ -292,7 +294,7 @@ function Editor() {
       let deeperSourceNode = nodeBindings.get(sourceAncestors[depth + 1]);
       let deeperDestNode = nodeBindings.get(destAncestors[depth + 1]);
 
-      if (tag.type === GapTag) {
+      if (tag.type === GapTag && !isGapNode(path.node)) {
         let reference = tagPath.previousSibling.tag;
 
         if (reference.type === ShiftTag) {
@@ -304,10 +306,9 @@ function Editor() {
 
         if (childNode === changedNode) {
           // dest
+          add(diffPath.node, reference, buildStubNode(buildGapTag()));
 
-          nodeBindings.delete(newValue);
-
-          add(diffPath.node, reference, newValue);
+          expressions.unshift(newValue);
         } else if (childNode === newValue) {
           // source
           let newStub = buildStubNode(buildGapTag());
@@ -364,7 +365,7 @@ function Editor() {
       ),
     );
 
-    setDocument(tree);
+    return tree;
   };
 
   const doSet = (destHtmlNode, newValue) => {
@@ -437,118 +438,120 @@ function Editor() {
       }
     }
 
-    setDocument(rootDiffPath.node);
+    return rootDiffPath.node;
   };
 
   const handlers = {
-    onMouseDown: (e) => {
-      let tokenNode = nodeBindings.get(e.target);
+    // onMouseDown: (e) => {
+    //   let tokenNode = nodeBindings.get(e.target);
 
-      let oldDoubleClickTarget = store.doubleClickTarget;
-      let oldSelectedRange = selectedRange();
-      let isDoubleClick = oldDoubleClickTarget === e.target;
+    //   let oldDoubleClickTarget = store.doubleClickTarget;
+    //   let oldSelectedRange = selectedRange();
+    //   let isDoubleClick = oldDoubleClickTarget === e.target;
 
-      if (store.doubleClickTimeout) window.clearTimeout(store.doubleClickTimeout);
+    //   if (store.doubleClickTimeout) window.clearTimeout(store.doubleClickTimeout);
 
-      if (!isDoubleClick) {
-        setStore('doubleClickTarget', e.target);
+    //   if (!isDoubleClick) {
+    //     setStore('doubleClickTarget', e.target);
 
-        setStore(
-          'doubleClickTimeout',
-          window.setTimeout(() => {
-            setStore('doubleClickTarget', null);
-            setStore('doubleClickTimeout', null);
-          }, 300),
-        );
-      } else {
-        setStore('doubleClickTarget', null);
-        setStore('doubleClickTimeout', null);
-      }
+    //     setStore(
+    //       'doubleClickTimeout',
+    //       window.setTimeout(() => {
+    //         setStore('doubleClickTarget', null);
+    //         setStore('doubleClickTimeout', null);
+    //       }, 300),
+    //     );
+    //   } else {
+    //     setStore('doubleClickTarget', null);
+    //     setStore('doubleClickTimeout', null);
+    //   }
 
-      // if (store.selectionState === 'selected') debugger;
-      if (
-        store.selectionState === 'selected' &&
-        find((node) => node.draggable, ancestors(e.target)) &&
-        !isDoubleClick
-      ) {
-        let isSyntactic =
-          !nodeBindings.get(e.target).flags.hasGap && !e.target.dataset.path.endsWith('$');
-        if (isSyntactic && nodeBindings.get(e.target.parentNode) === selectionRoot()) {
-          if (tokenNode) {
-            setSelectedRange([e.target, e.target]);
-          } else {
-            setSelectedRange([null, null]);
-          }
-        }
-        return;
-      }
+    //   // if (store.selectionState === 'selected') debugger;
+    //   if (
+    //     store.selectionState === 'selected' &&
+    //     find((node) => node.draggable, ancestors(e.target)) &&
+    //     !isDoubleClick
+    //   ) {
+    //     let isSyntactic =
+    //       !nodeBindings.get(e.target).flags.hasGap && !e.target.dataset.path.endsWith('$');
+    //     if (isSyntactic && nodeBindings.get(e.target.parentNode) === selectionRoot()) {
+    //       if (tokenNode) {
+    //         setSelectedRange([e.target, e.target]);
+    //       } else {
+    //         setSelectedRange([null, null]);
+    //       }
+    //     }
+    //     return;
+    //   }
 
-      if (!store.touchTimeout && oldDoubleClickTarget && !store.editing) {
-        e.preventDefault();
-      }
+    //   if (!store.touchTimeout && oldDoubleClickTarget && !store.editing) {
+    //     e.preventDefault();
+    //   }
 
-      let selection = window.getSelection();
+    //   let selection = window.getSelection();
 
-      let isEditModeClick =
-        store.editing && e.target.contentEditable && e.target === selectedRange()[0];
+    //   let isEditModeClick =
+    //     store.editing && e.target.contentEditable && e.target === selectedRange()[0];
 
-      if (!isEditModeClick) {
-        if (!store.touchTimeout) {
-          if (tokenNode) {
-            setSelectedRange([e.target, e.target]);
-          } else {
-            setSelectedRange([null, null]);
-          }
-          setStore('selectionState', 'selecting');
-        }
+    //   if (!isEditModeClick) {
+    //     if (!store.touchTimeout) {
+    //       if (tokenNode) {
+    //         setSelectedRange([e.target, e.target]);
+    //       } else {
+    //         setSelectedRange([null, null]);
+    //       }
+    //       setStore('selectionState', 'selecting');
+    //     }
 
-        if (store.editing && !store.touchTimeout) {
-          const selected = oldSelectedRange;
+    //     if (store.editing && !store.touchTimeout) {
+    //       const selected = oldSelectedRange;
 
-          if (selected[0] !== selected[1]) throw new Error();
+    //       if (selected[0] !== selected[1]) throw new Error();
 
-          let token = nodeBindings.get(selected[0]);
+    //       let token = nodeBindings.get(selected[0]);
 
-          if (!token.flags.token) throw new Error();
+    //       if (!token.flags.token) throw new Error();
 
-          // this prevents you double clicking on a different node to enter its edit mode
-          // as you leave your edit mode, the target changes
-          doSet(
-            selected[0],
-            treeFromStream([
-              btree.getAt(0, token.children),
-              buildLiteralTag(selected[0].innerText),
-              btree.getAt(-1, token.children),
-            ]),
-          );
+    //       // this prevents you double clicking on a different node to enter its edit mode
+    //       // as you leave your edit mode, the target changes
+    //       setDocument(
+    //         doSet(
+    //           selected[0],
+    //           treeFromStream([
+    //             btree.getAt(0, token.children),
+    //             buildLiteralTag(selected[0].innerText),
+    //             btree.getAt(-1, token.children),
+    //           ]),
+    //         ),
+    //       );
 
-          setStore('editing', false);
-        }
+    //       setStore('editing', false);
+    //     }
 
-        if (isDoubleClick) {
-          let range = store.doubleClickRange;
+    //     if (isDoubleClick) {
+    //       let range = store.doubleClickRange;
 
-          if (!store.touchTimeout) {
-            setStore('editing', true);
-          }
-          setStore('doubleClickRange', null);
+    //       if (!store.touchTimeout && tokenNode && !isGapNode(tokenNode)) {
+    //         setStore('editing', true);
+    //       }
+    //       setStore('doubleClickRange', null);
 
-          selection.removeAllRanges();
-          if (range) selection.addRange(range);
+    //       selection.removeAllRanges();
+    //       if (range) selection.addRange(range);
 
-          e.preventDefault();
-        } else {
-          window.setTimeout(() => {
-            if (store.doubleClickTarget) {
-              let range = selection.rangeCount ? selection.getRangeAt(0) : null;
-              selection.removeAllRanges();
-              if (range) range.collapse();
-              setStore('doubleClickRange', range);
-            }
-          });
-        }
-      }
-    },
+    //       e.preventDefault();
+    //     } else {
+    //       window.setTimeout(() => {
+    //         if (store.doubleClickTarget) {
+    //           let range = selection.rangeCount ? selection.getRangeAt(0) : null;
+    //           selection.removeAllRanges();
+    //           if (range) range.collapse();
+    //           setStore('doubleClickRange', range);
+    //         }
+    //       });
+    //     }
+    //   }
+    // },
     onTouchStart: (e) => {
       let tokenNode = nodeBindings.get(e.target);
 
@@ -636,10 +639,12 @@ function Editor() {
             ]),
           );
 
+          setSelectedRange([...selectedRange()]);
+
           setStore('editing', false);
         }
 
-        if (isDoubleTouch) {
+        if (isDoubleTouch && tokenNode && !isGapNode(tokenNode)) {
           setStore('editing', true);
 
           // e.preventDefault();
@@ -798,7 +803,7 @@ function Editor() {
       clone.id = 'dragShadow';
       window.document.body.appendChild(clone);
       e.dataTransfer.setDragImage(clone, 0, 0);
-      setStore('dragTarget', e.target);
+      setStore('dragSource', e.target);
     },
     onDragOver: (e) => {
       let tokenNode = nodeBindings.get(e.target);
@@ -809,8 +814,8 @@ function Editor() {
       }
     },
     onDragEnd: (e) => {
-      if (store.dragTarget) {
-        setStore('dragTarget', null);
+      if (store.dragSource) {
+        setStore('dragSource', null);
         setStore('doubleClickTarget', null);
 
         window.document.getElementById('dragShadow').remove();
@@ -822,18 +827,20 @@ function Editor() {
       e.preventDefault();
 
       if (isGapNode(tokenNode)) {
-        let { dragTarget } = store;
+        let { dragSource } = store;
+        let dragTarget = e.target;
+        let doc = doMove(dragSource, dragTarget);
 
-        doMove(dragTarget, e.target);
+        dragSource.parentNode.removeChild(dragSource);
 
-        dragTarget.parentNode.removeChild(dragTarget);
-
-        setStore('dragTarget', null);
+        setStore('dragSource', null);
         setStore('doubleClickTarget', null);
 
         window.document.getElementById('dragShadow').remove();
 
-        e.target.replaceWith(dragTarget);
+        e.target.replaceWith(dragSource);
+
+        setDocument(doc);
       }
     },
   };

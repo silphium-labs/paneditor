@@ -8,7 +8,7 @@ export const nodeBindings = new WeakMap();
 
 export const defaultState = {
   selectionState: 'none',
-  dragTarget: null,
+  dragSource: null,
   editing: false,
   touchTarget: null,
   touchTimeout: null,
