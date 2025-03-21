@@ -23,7 +23,8 @@ import {
   StoreContext,
   EditContext,
   nodeBindings,
-} from '../../state/store.js';
+  ReduxContext,
+} from '../../state/solid.js';
 import {
   get,
   buildStubNode,
@@ -37,7 +38,7 @@ import {
   treeFromStreamSync as treeFromStream,
 } from '@bablr/agast-helpers/tree';
 import { add, isGapNode, isNullNode, Path, TagPath } from '@bablr/agast-helpers/path';
-import * as btree from '@bablr/agast-helpers/btree';
+import * as sumtree from '@bablr/agast-helpers/sumtree';
 import {
   ReferenceTag,
   OpenNodeTag,
@@ -80,7 +81,7 @@ export const getWidth = (node) => {
   if (isNullNode(node)) return 0;
 
   return node.flags.token
-    ? [...btree.traverse(node.children)].reduce((w, tag) => {
+    ? [...sumtree.traverse(node.children)].reduce((w, tag) => {
         switch (tag.type) {
           case LiteralTag:
             return w + tag.value.length;
@@ -112,6 +113,9 @@ function Editor() {
   let { document, setDocument } = useContext(DocumentContext);
   let { store, setStore } = useContext(StoreContext);
   let { widths, editStates } = useContext(EditContext);
+  let {
+    actions: { changeFocus },
+  } = useContext(ReduxContext);
   let bablrContext = useContext(BABLRContext);
 
   createEffect(() => {
@@ -319,7 +323,7 @@ function Editor() {
           let newNode = createNode();
           add(diffPath.node, reference, newNode);
 
-          diffPath = diffPath.push(newNode, btree.getSum(diffPath.node.children) - 2);
+          diffPath = diffPath.push(newNode, sumtree.getSize(diffPath.node.children) - 2);
           tagPath = TagPath.from(tagPath.innerPath, 0);
           continue;
         } else {
@@ -336,9 +340,9 @@ function Editor() {
         let reference = tagPath.previousSibling.tag;
         add(diffPath.node, reference, tag.value);
       } else if (tag.type === CloseNodeTag) {
-        diffPath.node.children = btree.push(diffPath.node.children, tag);
+        diffPath.node.children = sumtree.push(diffPath.node.children, tag);
       } else if (tag.type === OpenNodeTag) {
-        diffPath.node.children = btree.push(diffPath.node.children, tag);
+        diffPath.node.children = sumtree.push(diffPath.node.children, tag);
         diffPath.node.flags = tag.value.flags;
         diffPath.node.type = tag.value.type;
         diffPath.node.language = tag.value.language;
@@ -400,7 +404,7 @@ function Editor() {
           let newNode = createNode();
           add(diffPath.node, reference, newNode);
 
-          diffPath = diffPath.push(newNode, btree.getSum(diffPath.node.children) - 2);
+          diffPath = diffPath.push(newNode, sumtree.getSize(diffPath.node.children) - 2);
           tagPath = TagPath.from(tagPath.innerPath, 0);
           continue;
         } else {
@@ -416,9 +420,9 @@ function Editor() {
         let reference = tagPath.previousSibling.tag;
         add(diffPath.node, reference, tag.value);
       } else if (tag.type === CloseNodeTag) {
-        diffPath.node.children = btree.push(diffPath.node.children, tag);
+        diffPath.node.children = sumtree.push(diffPath.node.children, tag);
       } else if (tag.type === OpenNodeTag) {
-        diffPath.node.children = btree.push(diffPath.node.children, tag);
+        diffPath.node.children = sumtree.push(diffPath.node.children, tag);
         diffPath.node.flags = tag.value.flags;
         diffPath.node.type = tag.value.type;
         diffPath.node.language = tag.value.language;
@@ -521,9 +525,9 @@ function Editor() {
             doSet(
               selected[0],
               treeFromStream([
-                btree.getAt(0, token.children),
+                sumtree.getAt(0, token.children),
                 buildLiteralTag(selected[0].innerText),
-                btree.getAt(-1, token.children),
+                sumtree.getAt(-1, token.children),
               ]),
             ),
           );
@@ -641,9 +645,9 @@ function Editor() {
           doSet(
             selected[0],
             treeFromStream([
-              btree.getAt(0, token.children),
+              sumtree.getAt(0, token.children),
               buildLiteralTag(selected[0].innerText),
-              btree.getAt(-1, token.children),
+              sumtree.getAt(-1, token.children),
             ]),
           );
 
@@ -757,9 +761,9 @@ function Editor() {
         doSet(
           selected[0],
           treeFromStream([
-            btree.getAt(0, token.children),
+            sumtree.getAt(0, token.children),
             buildLiteralTag(selected[0].innerText),
-            btree.getAt(-1, token.children),
+            sumtree.getAt(-1, token.children),
           ]),
         );
 
@@ -874,6 +878,17 @@ function Editor() {
         onDrop={handlers.onDrop}
       >
         {fragment()}
+        <div class="paste-bin">
+          <div
+            class="coin add-snippet"
+            onClick={() => {
+              changeFocus('snippets');
+            }}
+          >
+            +
+          </div>
+          <div class="coin top-snippet">sn</div>
+        </div>
       </div>
     </>
   );

@@ -1,31 +1,40 @@
-import { createContext } from 'solid-js';
+import { configureStore } from '@reduxjs/toolkit';
 
-const widths = new WeakMap();
+const { freeze } = Object;
 
-const editStates = new WeakMap();
+export const defaultState = freeze({
+  focus: 'hierarchy',
+  mode: 'select',
+});
 
-export const nodeBindings = new WeakMap();
+export const reducer = (state = defaultState, action) => {
+  switch (action.type) {
+    case 'CHANGE_MODE': {
+      return freeze({ ...state, mode: action.value.mode });
+    }
 
-export const defaultState = {
-  selectionState: 'none',
-  dragSource: null,
-  editing: false,
-  touchTarget: null,
-  touchTimeout: null,
-  doubleTouchTarget: null,
-  doubleTouchTimeout: null,
-  doubleTouchRange: null,
-  doubleClickTarget: null,
-  doubleClickTimeout: null,
-  doubleClickRange: null,
+    case 'CHANGE_FOCUS': {
+      return freeze({ ...state, focus: action.value.mode });
+    }
+
+    default:
+      return state;
+  }
 };
 
-export const StoreContext = createContext();
+export const actions = {
+  changeMode: (mode) => {
+    return { type: 'CHANGE_MODE', value: { mode } };
+  },
+  changeFocus: (mode) => {
+    return { type: 'CHANGE_FOCUS', value: { mode } };
+  },
+};
 
-export const BABLRContext = createContext();
-
-export const DocumentContext = createContext();
-
-export const SelectionContext = createContext();
-
-export const EditContext = createContext({ widths, editStates });
+export const store = configureStore({
+  reducer,
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: false,
+    }),
+});

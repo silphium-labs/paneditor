@@ -9,7 +9,7 @@ import {
   BABLRContext as BABLRSolidContext,
   EditContext,
   nodeBindings,
-} from '../../state/store.js';
+} from '../../state/solid.js';
 
 import './Environment.css';
 import { embeddedSourceFrom } from '@bablr/helpers/source';
