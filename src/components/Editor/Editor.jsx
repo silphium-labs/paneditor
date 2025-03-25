@@ -470,7 +470,6 @@ function Editor() {
         setStore('doubleClickTimeout', null);
       }
 
-      // if (store.selectionState === 'selected') debugger;
       if (
         store.selectionState === 'selected' &&
         find((node) => node.draggable, ancestors(e.target)) &&
