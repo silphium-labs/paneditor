@@ -127,7 +127,7 @@ function Editor() {
   let fragment = () => {
     let stack = emptyStack.push({ type: null, node: null, fragment: null });
 
-    let tagPath = TagPath.from(Path.from(document()), 0);
+    let tagPath = TagPath.fromNode(document(), 0);
 
     while (tagPath) {
       let { tag, path } = tagPath;
@@ -288,7 +288,7 @@ function Editor() {
     let destAncestors = [...ancestors(destHtmlNode)].reverse();
     let sourceAncestors = [...ancestors(sourceHtmlNode)].reverse();
 
-    let tagPath = TagPath.from(Path.from(nodeBindings.get(destAncestors[0])), 0);
+    let tagPath = TagPath.fromNode(nodeBindings.get(destAncestors[0]), 0);
     let diffPath = Path.from(createNode());
     let rootDiffPath = diffPath;
 
@@ -377,7 +377,7 @@ function Editor() {
 
     let destAncestors = [...ancestors(destHtmlNode)].reverse();
 
-    let tagPath = TagPath.from(Path.from(nodeBindings.get(destAncestors[0])), 0);
+    let tagPath = TagPath.fromNode(nodeBindings.get(destAncestors[0]), 0);
     let diffPath = Path.from(createNode());
     let rootDiffPath = diffPath;
 
