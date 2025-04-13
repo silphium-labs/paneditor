@@ -240,9 +240,9 @@ function Editor() {
                 {...draggable()}
                 class={classNames({
                   node: true,
-                  escape: reference.value.name === '@',
+                  escape: reference.value.type === '@',
                   token: node().flags.token,
-                  trivia: reference.value.name === '#',
+                  trivia: reference.value.type === '#',
                   hasGap: node().flags.hasGap,
                   selected: selected(),
                   highlighted: highlighted(),
