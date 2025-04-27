@@ -47,7 +47,6 @@ import {
   GapTag,
   EmbeddedNode,
   ShiftTag,
-  node,
 } from '@bablr/agast-helpers/symbols';
 import { debugEnhancers } from '@bablr/helpers/enhancers';
 
@@ -324,7 +323,7 @@ function Editor() {
           add(diffPath.node, reference, newNode);
 
           diffPath = diffPath.push(newNode, sumtree.getSize(diffPath.node.children) - 2);
-          tagPath = TagPath.from(tagPath.innerPath, 0);
+          tagPath = TagPath.from(tagPath.inner, 0);
           continue;
         } else {
           let htmlNode = nodeBindings.get(childNode);
@@ -405,7 +404,7 @@ function Editor() {
           add(diffPath.node, reference, newNode);
 
           diffPath = diffPath.push(newNode, sumtree.getSize(diffPath.node.children) - 2);
-          tagPath = TagPath.from(tagPath.innerPath, 0);
+          tagPath = TagPath.from(tagPath.inner, 0);
           continue;
         } else {
           let htmlNode = nodeBindings.get(childNode);
