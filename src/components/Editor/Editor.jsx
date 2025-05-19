@@ -36,6 +36,7 @@ import {
   createNode,
   buildLiteralTag,
   treeFromStreamSync as treeFromStream,
+  addProperty,
 } from '@bablr/agast-helpers/tree';
 import { add, isGapNode, isNullNode, Path, TagPath } from '@bablr/agast-helpers/path';
 import * as sumtree from '@bablr/agast-helpers/sumtree';
@@ -45,7 +46,7 @@ import {
   CloseNodeTag,
   LiteralTag,
   GapTag,
-  EmbeddedNode,
+  Property,
   ShiftTag,
 } from '@bablr/agast-helpers/symbols';
 import { debugEnhancers } from '@bablr/helpers/enhancers';
@@ -335,9 +336,8 @@ function Editor() {
             add(diffPath.node, reference, childNode);
           }
         }
-      } else if (tag.type === EmbeddedNode) {
-        let reference = tagPath.previousSibling.tag;
-        add(diffPath.node, reference, tag.value);
+      } else if (tag.type === Property) {
+        addProperty(diffPath.node, tag.value);
       } else if (tag.type === CloseNodeTag) {
         diffPath.node.children = sumtree.push(diffPath.node.children, tag);
       } else if (tag.type === OpenNodeTag) {
@@ -415,9 +415,8 @@ function Editor() {
             add(diffPath.node, reference, childNode);
           }
         }
-      } else if (tag.type === EmbeddedNode) {
-        let reference = tagPath.previousSibling.tag;
-        add(diffPath.node, reference, tag.value);
+      } else if (tag.type === Property) {
+        addProperty(diffPath.node, tag.value);
       } else if (tag.type === CloseNodeTag) {
         diffPath.node.children = sumtree.push(diffPath.node.children, tag);
       } else if (tag.type === OpenNodeTag) {
