@@ -26,7 +26,6 @@ import {
   ReduxContext,
 } from '../../state/solid.js';
 import {
-  get,
   buildStubNode,
   printReferenceTag,
   streamFromTree,
@@ -38,8 +37,8 @@ import {
   treeFromStreamSync as treeFromStream,
   addProperty,
 } from '@bablr/agast-helpers/tree';
-import { add, isGapNode, isNullNode, Path, TagPath } from '@bablr/agast-helpers/path';
-import * as sumtree from '@bablr/agast-helpers/sumtree';
+import { isGapNode, isNullNode, Path, TagPath } from '@bablr/agast-helpers/path';
+import * as sumtree from '@bablr/agast-helpers/children';
 import {
   ReferenceTag,
   OpenNodeTag,
@@ -386,22 +385,22 @@ function Editor() {
 
       if (tag.type === GapTag) {
         let deeperDestNode = nodeBindings.get(destAncestors[depth + 1]);
-        let reference = tagPath.previousSibling.tag;
+        let referenceTag = tagPath.previousSibling.tag;
 
-        if (reference.type === ShiftTag) {
+        if (referenceTag.type === ShiftTag) {
           throw new Error('umimplemented');
         }
 
         let childNode = tagPath.inner;
 
         if (childNode === changedNode) {
-          add(diffPath.node, reference, newValue);
+          add(diffPath.node, referenceTag, newValue);
           nodeBindings.set(destHtmlNode, newValue);
           nodeBindings.set(newValue, destHtmlNode);
           setNodeSignals.get(destHtmlNode)(newValue);
         } else if (childNode === deeperDestNode) {
           let newNode = createNode();
-          add(diffPath.node, reference, newNode);
+          add(diffPath.node, referenceTag, newNode);
 
           diffPath = diffPath.push(newNode, sumtree.getSize(diffPath.node.children) - 2);
           tagPath = TagPath.from(tagPath.inner, 0);
@@ -410,9 +409,9 @@ function Editor() {
           let htmlNode = nodeBindings.get(childNode);
 
           if (htmlNode?.dataset.path.endsWith('$')) {
-            add(diffPath.node, reference, childNode);
+            add(diffPath.node, referenceTag, childNode);
           } else {
-            add(diffPath.node, reference, childNode);
+            add(diffPath.node, referenceTag, childNode);
           }
         }
       } else if (tag.type === Property) {
