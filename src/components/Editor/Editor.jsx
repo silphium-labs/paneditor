@@ -35,7 +35,6 @@ import {
   createNode,
   buildLiteralTag,
   treeFromStreamSync as treeFromStream,
-  addProperty,
 } from '@bablr/agast-helpers/tree';
 import { isGapNode, isNullNode, Path, TagPath } from '@bablr/agast-helpers/path';
 import * as sumtree from '@bablr/agast-helpers/children';
@@ -45,7 +44,6 @@ import {
   CloseNodeTag,
   LiteralTag,
   GapTag,
-  Property,
   ShiftTag,
 } from '@bablr/agast-helpers/symbols';
 import { debugEnhancers } from '@bablr/helpers/enhancers';
@@ -335,7 +333,7 @@ function Editor() {
             add(diffPath.node, reference, childNode);
           }
         }
-      } else if (tag.type === Property) {
+      } else if (tag.type === OldProperty) {
         addProperty(diffPath.node, tag.value);
       } else if (tag.type === CloseNodeTag) {
         diffPath.node.children = sumtree.push(diffPath.node.children, tag);
@@ -414,7 +412,7 @@ function Editor() {
             add(diffPath.node, referenceTag, childNode);
           }
         }
-      } else if (tag.type === Property) {
+      } else if (tag.type === OldProperty) {
         addProperty(diffPath.node, tag.value);
       } else if (tag.type === CloseNodeTag) {
         diffPath.node.children = sumtree.push(diffPath.node.children, tag);
