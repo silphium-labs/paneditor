@@ -77,8 +77,8 @@ export const getWidth = (node) => {
   if (isGapNode(node)) return 1;
   if (isNullNode(node)) return 0;
 
-  return node.flags.token
-    ? [...sumtree.traverse(node.children)].reduce((w, tag) => {
+  return node.value.flags.token
+    ? [...sumtree.traverse(node.value.children)].reduce((w, tag) => {
         switch (tag.type) {
           case LiteralTag:
             return w + tag.value.length;
@@ -221,7 +221,9 @@ function Editor() {
             };
 
             let contentEditable = () =>
-              selected() && store.editing && node().flags.token ? { contenteditable: true } : {};
+              selected() && store.editing && node().value.flags.token
+                ? { contenteditable: true }
+                : {};
 
             let draggable = () =>
               !store.editing && selected() && store.selectionState === 'selected'
@@ -238,9 +240,9 @@ function Editor() {
                 class={classNames({
                   node: true,
                   escape: reference.value.type === '@',
-                  token: node().flags.token,
+                  token: node().value.flags.token,
                   trivia: reference.value.type === '#',
-                  hasGap: node().flags.hasGap,
+                  hasGap: node().value.flags.hasGap,
                   selected: selected(),
                   highlighted: highlighted(),
                   dragging: dragging(),
@@ -320,7 +322,7 @@ function Editor() {
           let newNode = createNode();
           add(diffPath.node, reference, newNode);
 
-          diffPath = diffPath.push(newNode, sumtree.getSize(diffPath.node.children) - 2);
+          diffPath = diffPath.push(newNode, sumtree.getSize(diffPath.node.value.children) - 2);
           tagPath = TagPath.from(tagPath.inner, 0);
           continue;
         } else {
@@ -336,13 +338,13 @@ function Editor() {
       } else if (tag.type === OldProperty) {
         addProperty(diffPath.node, tag.value);
       } else if (tag.type === CloseNodeTag) {
-        diffPath.node.children = sumtree.push(diffPath.node.children, tag);
+        diffPath.node.value.children = sumtree.push(diffPath.node.value.children, tag);
       } else if (tag.type === OpenNodeTag) {
-        diffPath.node.children = sumtree.push(diffPath.node.children, tag);
-        diffPath.node.flags = tag.value.flags;
-        diffPath.node.type = tag.value.type;
-        diffPath.node.language = tag.value.language;
-        diffPath.node.attributes = tag.value.attributes;
+        diffPath.node.value.children = sumtree.push(diffPath.node.value.children, tag);
+        diffPath.node.value.flags = tag.value.flags;
+        diffPath.node.value.type = tag.value.type;
+        diffPath.node.value.language = tag.value.language;
+        diffPath.node.value.attributes = tag.value.attributes;
       }
 
       if (!tagPath.nextSibling) {
@@ -400,7 +402,7 @@ function Editor() {
           let newNode = createNode();
           add(diffPath.node, referenceTag, newNode);
 
-          diffPath = diffPath.push(newNode, sumtree.getSize(diffPath.node.children) - 2);
+          diffPath = diffPath.push(newNode, sumtree.getSize(diffPath.node.value.children) - 2);
           tagPath = TagPath.from(tagPath.inner, 0);
           continue;
         } else {
@@ -415,13 +417,13 @@ function Editor() {
       } else if (tag.type === OldProperty) {
         addProperty(diffPath.node, tag.value);
       } else if (tag.type === CloseNodeTag) {
-        diffPath.node.children = sumtree.push(diffPath.node.children, tag);
+        diffPath.node.value.children = sumtree.push(diffPath.node.value.children, tag);
       } else if (tag.type === OpenNodeTag) {
-        diffPath.node.children = sumtree.push(diffPath.node.children, tag);
-        diffPath.node.flags = tag.value.flags;
-        diffPath.node.type = tag.value.type;
-        diffPath.node.language = tag.value.language;
-        diffPath.node.attributes = tag.value.attributes;
+        diffPath.node.value.children = sumtree.push(diffPath.node.value.children, tag);
+        diffPath.node.value.flags = tag.value.flags;
+        diffPath.node.value.type = tag.value.type;
+        diffPath.node.value.language = tag.value.language;
+        diffPath.node.value.attributes = tag.value.attributes;
       }
 
       if (!tagPath.nextSibling) {
@@ -471,7 +473,7 @@ function Editor() {
         !isDoubleClick
       ) {
         let isSyntactic =
-          !nodeBindings.get(e.target).flags.hasGap && !e.target.dataset.path.endsWith('$');
+          !nodeBindings.get(e.target).value.flags.hasGap && !e.target.dataset.path.endsWith('$');
         if (isSyntactic && nodeBindings.get(e.target.parentNode) === selectionRoot()) {
           if (tokenNode) {
             setSelectedRange([e.target, e.target]);
@@ -511,7 +513,7 @@ function Editor() {
 
           let token = nodeBindings.get(selected[0]);
 
-          if (!token.flags.token) throw new Error();
+          if (!token.value.flags.token) throw new Error();
 
           // this prevents you double clicking on a different node to enter its edit mode
           // as you leave your edit mode, the target changes
@@ -519,9 +521,9 @@ function Editor() {
             doSet(
               selected[0],
               treeFromStream([
-                sumtree.getAt(0, token.children),
+                sumtree.getAt(0, token.value.children),
                 buildLiteralTag(selected[0].innerText),
-                sumtree.getAt(-1, token.children),
+                sumtree.getAt(-1, token.value.children),
               ]),
             ),
           );
@@ -596,7 +598,7 @@ function Editor() {
         !isDoubleTouch
       ) {
         let isSyntactic =
-          !nodeBindings.get(e.target).flags.hasGap && !e.target.dataset.path.endsWith('$');
+          !nodeBindings.get(e.target).value.flags.hasGap && !e.target.dataset.path.endsWith('$');
         if (isSyntactic && nodeBindings.get(e.target.parentNode) === selectionRoot()) {
           if (tokenNode) {
             setSelectedRange([e.target, e.target]);
@@ -634,14 +636,14 @@ function Editor() {
 
           let token = nodeBindings.get(selected[0]);
 
-          if (!token.flags.token) throw new Error();
+          if (!token.value.flags.token) throw new Error();
 
           doSet(
             selected[0],
             treeFromStream([
-              sumtree.getAt(0, token.children),
+              sumtree.getAt(0, token.value.children),
               buildLiteralTag(selected[0].innerText),
-              sumtree.getAt(-1, token.children),
+              sumtree.getAt(-1, token.value.children),
             ]),
           );
 
@@ -750,14 +752,14 @@ function Editor() {
 
         let token = nodeBindings.get(selected[0]);
 
-        if (!token.flags.token) throw new Error();
+        if (!token.value.flags.token) throw new Error();
 
         doSet(
           selected[0],
           treeFromStream([
-            sumtree.getAt(0, token.children),
+            sumtree.getAt(0, token.value.children),
             buildLiteralTag(selected[0].innerText),
-            sumtree.getAt(-1, token.children),
+            sumtree.getAt(-1, token.value.children),
           ]),
         );
 

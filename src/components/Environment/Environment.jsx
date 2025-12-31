@@ -89,7 +89,11 @@ function Environment() {
       let pathNode = range[0];
       let node = nodeBindings.get(pathNode);
 
-      if (node.flags.token && !node.flags.hasGap && !pathNode.dataset.path.endsWith('$')) {
+      if (
+        node.value.flags.token &&
+        !node.value.flags.hasGap &&
+        !pathNode.dataset.path.endsWith('$')
+      ) {
         pathNode = pathNode.parentNode;
         node = nodeBindings.get(pathNode);
       }
