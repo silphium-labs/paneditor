@@ -204,7 +204,7 @@ function Editor() {
 
           let span = runWithOwner(solidRoot, () => {
             let referenceAttributes = {
-              'data-type': node()?.type.description,
+              'data-name': node()?.value.name.description,
               'data-path': printReferenceTag(reference).slice(0, -1),
             };
 
@@ -342,7 +342,7 @@ function Editor() {
       } else if (tag.type === OpenNodeTag) {
         diffPath.node.value.children = sumtree.push(diffPath.node.value.children, tag);
         diffPath.node.value.flags = tag.value.flags;
-        diffPath.node.value.type = tag.value.type;
+        diffPath.node.value.name = tag.value.name;
         diffPath.node.value.language = tag.value.language;
         diffPath.node.value.attributes = tag.value.attributes;
       }
@@ -421,7 +421,7 @@ function Editor() {
       } else if (tag.type === OpenNodeTag) {
         diffPath.node.value.children = sumtree.push(diffPath.node.value.children, tag);
         diffPath.node.value.flags = tag.value.flags;
-        diffPath.node.value.type = tag.value.type;
+        diffPath.node.value.name = tag.value.name;
         diffPath.node.value.language = tag.value.language;
         diffPath.node.value.attributes = tag.value.attributes;
       }
