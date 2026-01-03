@@ -50,7 +50,6 @@ import { debugEnhancers } from '@bablr/helpers/enhancers';
 
 import './Editor.css';
 import { sourceFromTokenStream } from '@bablr/helpers/source';
-import { buildString } from '@bablr/helpers/builders';
 
 let setNodeSignals = new WeakMap();
 
@@ -71,7 +70,7 @@ function* ancestors(node) {
 
 const computeStartPos = (node, widths) => {};
 
-let matcher = spam`<$${buildString(language.canonicalURL)}:Expression />`;
+let matcher = spam`<$Expression />`;
 
 export const getWidth = (node) => {
   if (isGapNode(node)) return 1;

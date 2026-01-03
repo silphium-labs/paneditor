@@ -17,9 +17,8 @@ import { debugEnhancers } from '@bablr/helpers/enhancers';
 import { evaluateReturnSync } from '@bablr/agast-helpers/tree';
 import { evaluateIO } from '@bablr/io-vm-web';
 import { spam } from '@bablr/boot';
-import { buildString } from '@bablr/helpers/builders';
 
-let matcher = spam`<$${buildString(language.canonicalURL)}:Expression />`;
+let matcher = spam`<$Expression />`;
 
 const getPath = (node) => {
   let node_ = node;
