@@ -1,0 +1,13 @@
+.systemTray {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px;
+}
+
+.systemTray .leftIcons {
+  display: flex;
+}
+
+.systemTray .leftIcons > svg {
+  margin: 0 6px;
+}
