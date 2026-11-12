@@ -1,4 +1,3 @@
-import { native } from '../jsx.js';
 import SystemTray from '../SystemTray/SystemTray.js';
 import './System.css';
 
