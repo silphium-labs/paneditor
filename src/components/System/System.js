@@ -4,13 +4,12 @@ import './System.css';
 
 // prettier-ignore
 function* System() {
-  yield '<(div)>';
-  yield native;
-
-    yield* ['<(SystemTray)>', SystemTray, '</>'];
-    // yield* ['<(AppFrame)>', AppFrame, '</>'],
-    
-  yield '</>';
+  yield* [
+    '<div>',
+      '<(SystemTray)>', SystemTray, '</>',
+      // '<(AppFrame)>', AppFrame, '</>',
+    '</>'
+  ];
 }
 
 export default System;
