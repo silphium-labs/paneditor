@@ -6,9 +6,9 @@ import './SystemTray.css';
 // prettier-ignore
 function* SystemTray() {
   yield* [
-    '<div {class: "systemTray"}>',
+    '<div { class: "systemTray" }>',
       '<* "SystemTray" />',
-      '<div {class: "leftIcons"}>',
+      '<div { class: "leftIcons" }>',
         // '<(Terminal) {size:20px}>', Terminal, '</>',
       '</>',
 
