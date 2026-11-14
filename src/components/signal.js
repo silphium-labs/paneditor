@@ -58,6 +58,99 @@ export function createRoot(fn, detachedOwner) {
   }
 }
 
+export function* createComponentRoot(gen, detachedOwner) {
+  let listener = Listener,
+    owner = Owner,
+    unowned = gen.length === 0,
+    current = detachedOwner === undefined ? owner : detachedOwner,
+    root = unowned
+      ? UNOWNED
+      : {
+          owned: null,
+          cleanups: null,
+          context: current ? current.context : null,
+          owner: current,
+        },
+    updateGen = unowned ? gen : () => gen(createDisposer(root));
+
+  let iter, step;
+
+  try {
+    Owner = root;
+    Listener = null;
+    iter = runComponentUpdates(updateGen, true)[Symbol.iterator]();
+    Listener = listener;
+    Owner = owner;
+
+    for (;;) {
+      Owner = root;
+      Listener = null;
+      step = iter.next();
+      Listener = listener;
+      Owner = owner;
+
+      if (step.done) break;
+
+      yield step.value;
+    }
+
+    return step.value;
+  } finally {
+    Listener = listener;
+    Owner = owner;
+  }
+}
+
+function* runComponentUpdates(fn, init) {
+  if (Updates) return yield* fn();
+  let wait = false;
+  if (!init) Updates = [];
+  if (Effects) wait = true;
+  else Effects = [];
+  ExecCount++;
+  try {
+    let res = yield* fn();
+    completeUpdates(wait);
+    return res;
+  } catch (err) {
+    if (!wait) Effects = null;
+    Updates = null;
+    handleError(err);
+  }
+}
+
+export function* untrackComponent(fn) {
+  if (Listener === null) return yield* fn();
+
+  let Outer = Listener;
+
+  Listener = null;
+
+  let iter;
+  let step;
+  let returnValue;
+  try {
+    iter = fn()[Symbol.iterator]();
+
+    for (;;) {
+      Listener = null;
+
+      step = iter.next(returnValue);
+
+      Listener = Outer;
+
+      if (step.done) break;
+
+      returnValue = yield step.value;
+    }
+
+    return step.value;
+  } finally {
+    iter?.return();
+    Listener = Outer;
+  }
+}
+
 // Created outside createRoot so the dispose function does not share its scope,
 // which holds `fn`: whoever keeps the dispose function would keep `fn` and
 // everything it closes over (e.g. the list a mapArray row was created from).
