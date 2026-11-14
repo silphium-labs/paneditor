@@ -23,7 +23,7 @@ let Owner = null;
 let Listener = null;
 let Updates = null;
 let Effects = null;
-let ExecCount = 0;
+let ExecCount = 1;
 
 export const getOwner = () => Owner;
 export const getListener = () => Listener;
@@ -56,7 +56,7 @@ export function createRoot(fn, owner = Owner) {
   }
 }
 
-export function* createComponentRoot(comp, owner = Owner) {
+export function* createComponentRoot(gen, owner = Owner) {
   let listener = Listener;
   let unowned = owner !== null;
   let root = unowned
@@ -68,13 +68,14 @@ export function* createComponentRoot(comp, owner = Owner) {
         owner,
       };
   let dispose = unowned ? null : createDisposer(root);
+  let updateGen = () => gen();
 
   let iter, step;
 
   try {
     Owner = root;
     Listener = null;
-    iter = runComponentUpdates(comp, true)[Symbol.iterator]();
+    iter = runComponentUpdates(updateGen, true)[Symbol.iterator]();
 
     for (;;) {
       Owner = root;
@@ -101,14 +102,14 @@ export function* createComponentRoot(comp, owner = Owner) {
 }
 
 function* runComponentUpdates(comp, init) {
-  if (Updates) return yield* comp;
+  if (Updates) return yield* comp();
   let wait = false;
   if (!init) Updates = [];
   if (Effects) wait = true;
   else Effects = [];
   ExecCount++;
   try {
-    let res = yield* comp;
+    let res = yield* comp();
     completeUpdates(wait);
     return res;
   } catch (err) {
@@ -118,8 +119,8 @@ function* runComponentUpdates(comp, init) {
   }
 }
 
-export function* untrackComponent(comp) {
-  if (Listener === null) return yield* comp;
+export function* untrackComponent(fn) {
+  if (Listener === null) return yield* fn();
 
   let Outer = Listener;
 
@@ -129,7 +130,7 @@ export function* untrackComponent(comp) {
   let step;
   let returnValue;
   try {
-    iter = comp[Symbol.iterator]();
+    iter = fn()[Symbol.iterator]();
 
     for (;;) {
       Listener = null;
@@ -189,22 +190,22 @@ export function signal(value, options) {
 }
 
 export function createComputed(fn, value, options) {
-  let c = createComputation(fn, value, true, STALE);
+  let c = createComputation(fn, value);
 
-  updateComputation(c);
+  runComputation(c);
 }
 
 export function createRenderEffect(fn, value, options) {
-  let c = createComputation(fn, value, false, STALE);
+  let c = createComputation(fn, value, false);
 
-  updateComputation(c);
+  runComputation(c);
 }
 
 export function createEffect(fn, value, options) {
   runEffects = runUserEffects;
-  let c = createComputation(fn, value, false, STALE);
-  if (!options || !options.render) c.user = true;
-  Effects ? Effects.push(c) : updateComputation(c);
+  let user = !options || !options.render;
+  let c = createComputation(fn, value, false, STALE, user);
+  Effects ? Effects.push(c) : runComputation(c);
 }
 
 export function createReaction(onInvalidate, options) {
@@ -217,11 +218,12 @@ export function createReaction(onInvalidate, options) {
     undefined,
     false,
     0,
+    true,
   );
-  c.user = true;
+
   return (tracking) => {
     fn = tracking;
-    updateComputation(c);
+    runComputation(c);
   };
 }
 
@@ -229,11 +231,13 @@ export function createMemo(fn, value, options) {
   options = options ? Object.assign({}, signalOptions, options) : signalOptions;
 
   let c = createComputation(fn, value, true, 0);
-
+  // TODO fix monomorphism!
   c.observers = null;
   c.observerSlots = null;
   c.comparator = options.equals || undefined;
-  updateComputation(c);
+
+  runComputation(c);
+
   return readSignal.bind(c);
 }
 
@@ -258,9 +262,8 @@ export function createSelector(source, fn, options) {
     },
     undefined,
     true,
-    STALE,
   );
-  updateComputation(node);
+  runComputation(node);
   return (key) => {
     let listener = Listener;
     if (listener) {
@@ -325,7 +328,7 @@ export function onCleanup(fn) {
 
 export function catchError(fn, handler) {
   ERROR || (ERROR = Symbol('error'));
-  Owner = createComputation(undefined, undefined, true);
+  Owner = createComputation();
   Owner.context = { ...Owner.context, [ERROR]: [handler] };
   try {
     return fn();
@@ -392,27 +395,9 @@ export function children(fn) {
 
 // Internal
 
-// Rebuild a source's `observerSlots` from its observers' back-pointers.
-// A source can end up with observers but no (or out-of-sync) slots when an
-// array allocation fails midway through `readSignal` (see #4680); without
-// this, `cleanNode` and a later `readSignal` throw on the missing array.
-// Each observer subscribes to a source at most once, so the slot for
-// `observers[i]` is the index of the source in that observer's `sources`.
-function repairObserverSlots(source) {
-  source.observerSlots = source.observers.map((observer, slot) => {
-    let sources = observer.sources;
-    if (!sources) return -1;
-    for (let i = sources.length - 1; i >= 0; i--) {
-      if (sources[i] === source && observer.sourceSlots && observer.sourceSlots[i] === slot)
-        return i;
-    }
-    return sources.lastIndexOf(source);
-  });
-}
-
 export function readSignal() {
   if (this.sources && this.state) {
-    if (this.state === STALE) updateComputation(this);
+    if (this.state === STALE) runComputation(this);
     else {
       let updates = Updates;
       Updates = null;
@@ -425,28 +410,16 @@ export function readSignal() {
     if (!observers || observers[observers.length - 1] !== Listener) {
       let sSlot = observers ? observers.length : 0;
       if (!Listener.sources) {
-        // Build both arrays before assigning either, so an allocation
-        // failure cannot leave `sources` set while `sourceSlots` is null.
-        let sources = [this];
-        let sourceSlots = [sSlot];
-        Listener.sources = sources;
-        Listener.sourceSlots = sourceSlots;
+        Listener.sources = [this];
+        Listener.sourceSlots = [sSlot];
       } else {
         Listener.sources.push(this);
         Listener.sourceSlots.push(sSlot);
       }
       if (!observers) {
-        // Build both arrays before assigning either, so an allocation
-        // failure cannot leave `observers` set while `observerSlots` is null.
-        let newObservers = [Listener];
-        let newObserverSlots = [Listener.sources.length - 1];
-        this.observers = newObservers;
-        this.observerSlots = newObserverSlots;
+        this.observers = [Listener];
+        this.observerSlots = [Listener.sources.length - 1];
       } else {
-        // The slot array may be missing or out of sync if an earlier
-        // allocation failed; rebuild it from the back-pointers first.
-        if (!this.observerSlots || this.observerSlots.length !== observers.length)
-          repairObserverSlots(this);
         observers.push(Listener);
         this.observerSlots.push(Listener.sources.length - 1);
       }
@@ -482,14 +455,11 @@ export function writeSignal(node, value, isComp) {
   return value;
 }
 
-function updateComputation(node) {
+function runComputation(node) {
   if (!node.fn) return;
   cleanNode(node, true);
   let time = ExecCount;
-  runComputation(node, node.value, time);
-}
-
-function runComputation(node, value, time) {
+  let { value } = node;
   let nextValue;
   let owner = Owner,
     listener = Listener;
@@ -517,7 +487,7 @@ function runComputation(node, value, time) {
   }
 }
 
-function createComputation(fn, init, pure, state) {
+function createComputation(fn, init, pure = true, state = STALE, user = false) {
   let c = {
     fn,
     state: state,
@@ -530,6 +500,7 @@ function createComputation(fn, init, pure, state) {
     owner: Owner,
     context: Owner ? Owner.context : null,
     pure,
+    user,
   };
 
   if (Owner !== null && Owner !== UNOWNED) {
@@ -552,7 +523,7 @@ function runTop(node) {
     node = ancestors[i];
 
     if (node.state === STALE) {
-      updateComputation(node);
+      runComputation(node);
     } else if (node.state === PENDING) {
       let updates = Updates;
       Updates = null;
@@ -642,8 +613,6 @@ function cleanNode(node, recompute) {
         index = node.sourceSlots.pop(),
         obs = source.observers;
       if (obs && obs.length) {
-        if (!source.observerSlots || source.observerSlots.length !== obs.length)
-          repairObserverSlots(source);
         let n = obs.pop(),
           s = source.observerSlots.pop();
         if (index < obs.length) {
@@ -655,10 +624,6 @@ function cleanNode(node, recompute) {
     }
   }
 
-  if (node.tOwned) {
-    for (i = node.tOwned.length - 1; i >= 0; i--) cleanNode(node.tOwned[i]);
-    delete node.tOwned;
-  }
   if (node.owned) {
     for (i = node.owned.length - 1; i >= 0; i--) cleanNode(node.owned[i]);
     node.owned = null;
