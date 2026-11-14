@@ -34,7 +34,7 @@ export const send = (signal, value) => {
 
 export function createRoot(fn, owner = Owner) {
   let listener = Listener;
-  let unowned = fn.length === 0;
+  let unowned = owner !== null;
   let root = unowned
     ? UNOWNED
     : {
@@ -58,7 +58,7 @@ export function createRoot(fn, owner = Owner) {
 
 export function* createComponentRoot(gen, owner = Owner) {
   let listener = Listener;
-  let unowned = gen.length === 0;
+  let unowned = owner !== null;
   let root = unowned
     ? UNOWNED
     : {
