@@ -39,7 +39,7 @@ export function* native(dom) {
 
 export const render = (component, htmlRoot) => {
   let stack = [];
-  let iter = createComponentRoot(() => component[Symbol.iterator]());
+  let iter = createComponentRoot(component);
   let step;
   let resultPath = null;
   let htmlNode = htmlRoot;
@@ -70,7 +70,7 @@ export const render = (component, htmlRoot) => {
 
             let fn = node[1];
 
-            iter = untrackComponent(() => createComponentRoot(() => fn(node)));
+            iter = untrackComponent(createComponentRoot(fn(node)));
             continue outer;
           }
           break;
@@ -144,7 +144,7 @@ export const render = (component, htmlRoot) => {
               let { node } = finishedPath;
               let fn = node[1];
 
-              iter = untrackComponent(() => createComponentRoot(() => fn(node)));
+              iter = untrackComponent(createComponentRoot(fn(node)));
               continue outer;
             }
           } else {

@@ -43,7 +43,7 @@ export function createRoot(fn, owner = Owner) {
         context: owner ? owner.context : null,
         owner,
       };
-  let updateFn = unowned ? fn : () => fn(createDisposer(root));
+  let updateFn = unowned ? () => fn() : () => fn(createDisposer(root));
 
   Owner = root;
   Listener = null;
@@ -56,7 +56,7 @@ export function createRoot(fn, owner = Owner) {
   }
 }
 
-export function* createComponentRoot(gen, owner = Owner) {
+export function* createComponentRoot(comp, owner = Owner) {
   let listener = Listener;
   let unowned = owner !== null;
   let root = unowned
@@ -67,15 +67,14 @@ export function* createComponentRoot(gen, owner = Owner) {
         context: owner ? owner.context : null,
         owner,
       };
-  let dispose = createDisposer(root);
-  let updateGen = unowned ? gen : () => gen();
+  let dispose = unowned ? null : createDisposer(root);
 
   let iter, step;
 
   try {
     Owner = root;
     Listener = null;
-    iter = runComponentUpdates(updateGen, true)[Symbol.iterator]();
+    iter = runComponentUpdates(comp, true)[Symbol.iterator]();
 
     for (;;) {
       Owner = root;
@@ -93,7 +92,7 @@ export function* createComponentRoot(gen, owner = Owner) {
 
     return () => {
       disposeComponent?.();
-      dispose();
+      dispose?.();
     };
   } finally {
     Listener = listener;
@@ -101,15 +100,15 @@ export function* createComponentRoot(gen, owner = Owner) {
   }
 }
 
-function* runComponentUpdates(fn, init) {
-  if (Updates) return yield* fn();
+function* runComponentUpdates(comp, init) {
+  if (Updates) return yield* comp;
   let wait = false;
   if (!init) Updates = [];
   if (Effects) wait = true;
   else Effects = [];
   ExecCount++;
   try {
-    let res = yield* fn();
+    let res = yield* comp;
     completeUpdates(wait);
     return res;
   } catch (err) {
@@ -119,8 +118,8 @@ function* runComponentUpdates(fn, init) {
   }
 }
 
-export function* untrackComponent(fn) {
-  if (Listener === null) return yield* fn();
+export function* untrackComponent(comp) {
+  if (Listener === null) return yield* comp;
 
   let Outer = Listener;
 
@@ -130,7 +129,7 @@ export function* untrackComponent(fn) {
   let step;
   let returnValue;
   try {
-    iter = fn()[Symbol.iterator]();
+    iter = comp[Symbol.iterator]();
 
     for (;;) {
       Listener = null;
