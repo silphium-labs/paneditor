@@ -67,7 +67,8 @@ export function* createComponentRoot(gen, owner = Owner) {
         context: owner ? owner.context : null,
         owner,
       };
-  let updateGen = unowned ? gen : () => gen(createDisposer(root));
+  let dispose = createDisposer(root);
+  let updateGen = unowned ? gen : () => gen();
 
   let iter, step;
 
@@ -88,7 +89,12 @@ export function* createComponentRoot(gen, owner = Owner) {
       yield step.value;
     }
 
-    return step.value;
+    let disposeComponent = step.value;
+
+    return () => {
+      disposeComponent?.();
+      dispose();
+    };
   } finally {
     Listener = listener;
     Owner = owner;

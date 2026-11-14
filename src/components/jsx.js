@@ -40,6 +40,7 @@ export function* native(dom) {
 export const render = (component, htmlRoot) => {
   let stack = [];
   let iter = createComponentRoot(() => component[Symbol.iterator]());
+  let step;
   let resultPath = null;
   let htmlNode = htmlRoot;
   let componentPath = null;
@@ -47,7 +48,6 @@ export const render = (component, htmlRoot) => {
   htmlNode.innerHTML = '';
 
   outer: do {
-    let step;
     while (!(step = iter.next()).done) {
       let tag_ = step.value;
       let tag = parseTag(tag_);
@@ -191,5 +191,5 @@ export const render = (component, htmlRoot) => {
     }
   } while (true);
 
-  return resultPath.node;
+  return step.value;
 };
