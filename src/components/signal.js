@@ -190,13 +190,13 @@ export function signal(value, options) {
 }
 
 export function createComputed(fn, value, options) {
-  let c = createComputation(fn, value);
+  let c = createComputation(fn, value, true, STALE);
 
   runComputation(c);
 }
 
 export function createRenderEffect(fn, value, options) {
-  let c = createComputation(fn, value, false);
+  let c = createComputation(fn, value, false, STALE);
 
   runComputation(c);
 }
@@ -230,7 +230,7 @@ export function createReaction(onInvalidate, options) {
 export function createMemo(fn, value, options) {
   options = options ? Object.assign({}, signalOptions, options) : signalOptions;
 
-  let c = createComputation(fn, value, true, 0);
+  let c = createComputation(fn, value);
   // TODO fix monomorphism!
   c.observers = null;
   c.observerSlots = null;
@@ -262,6 +262,7 @@ export function createSelector(source, fn, options) {
     },
     undefined,
     true,
+    STALE,
   );
   runComputation(node);
   return (key) => {
@@ -487,7 +488,7 @@ function runComputation(node) {
   }
 }
 
-function createComputation(fn, init, pure = true, state = STALE, user = false) {
+function createComputation(fn, init, pure = true, state = 0, user = false) {
   let c = {
     fn,
     state: state,
