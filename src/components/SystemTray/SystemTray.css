@@ -2,6 +2,9 @@
   display: flex;
   justify-content: space-between;
   padding: 4px;
+
+  background-color: rgb(57, 40, 40);
+  border-bottom: 1px solid #553c3c;
 }
 
 .systemTray .leftIcons {

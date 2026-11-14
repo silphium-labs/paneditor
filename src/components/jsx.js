@@ -37,11 +37,14 @@ export function* native(dom) {
   yield '</>';
 }
 
-export const render = (component) => {
+export const render = (component, htmlRoot) => {
   let stack = [];
   let iter = createComponentRoot(() => component[Symbol.iterator]());
   let resultPath = null;
+  let htmlNode = htmlRoot;
   let componentPath = null;
+
+  htmlNode.innerHTML = '';
 
   outer: do {
     let step;
@@ -81,6 +84,27 @@ export const render = (component) => {
             componentPath = Path.advance(componentPath, tag_);
           } else {
             resultPath = Path.advance(resultPath, tag_);
+
+            let { name, literalValue, attributes } = tag.value;
+
+            let newNode = name ? document.createElement(name.description) : null;
+
+            for (let { 0: key, 1: value } of recordEntries(attributes)) {
+              newNode.setAttribute(key, value);
+            }
+
+            if (literalValue) {
+              let textNode = document.createTextNode(literalValue.value.value);
+              if (name) {
+                newNode.append(textNode);
+              } else {
+                newNode = textNode;
+              }
+            }
+
+            htmlNode.append(newNode);
+
+            htmlNode = name ? newNode : htmlNode;
           }
 
           if (tag.value.selfClosing) {
@@ -125,8 +149,22 @@ export const render = (component) => {
             }
           } else {
             resultPath = Path.advance(resultPath, tag_);
+
+            htmlNode = htmlNode.parentElement;
           }
 
+          break;
+        }
+
+        case LiteralTag: {
+          if (componentPath) {
+            componentPath = Path.advance(componentPath, tag_);
+          } else if (resultPath) {
+            resultPath = Path.advance(resultPath, tag_);
+
+            let textNode = document.createTextNode(tag.value.value);
+            htmlNode.append(textNode);
+          }
           break;
         }
 
@@ -154,54 +192,4 @@ export const render = (component) => {
   } while (true);
 
   return resultPath.node;
-};
-
-export const paint = (screenRoot, content) => {
-  let node = content;
-  let htmlNode = screenRoot;
-
-  htmlNode.innerHTML = '';
-
-  for (let tag_ of streamFromTree(content)) {
-    let tag = parseTag(tag_);
-
-    switch (tag.type) {
-      case OpenTag:
-        {
-          let { name, literalValue, attributes } = tag.value;
-
-          let newNode = name ? document.createElement(name.description) : null;
-
-          for (let { 0: key, 1: value } of recordEntries(attributes)) {
-            newNode.setAttribute(key, value);
-          }
-
-          if (literalValue) {
-            let textNode = document.createTextNode(literalValue.value.value);
-            if (name) {
-              newNode.append(textNode);
-            } else {
-              newNode = textNode;
-            }
-          }
-
-          htmlNode.append(newNode);
-
-          htmlNode = name ? newNode : htmlNode;
-        }
-        break;
-
-      case CloseTag: {
-        htmlNode = htmlNode.parentElement;
-
-        break;
-      }
-
-      case LiteralTag: {
-        let textNode = document.createTextNode(tag.value.value);
-        htmlNode.append(textNode);
-        break;
-      }
-    }
-  }
 };
