@@ -79,8 +79,6 @@ export function* createComponentRoot(gen, detachedOwner) {
     Owner = root;
     Listener = null;
     iter = runComponentUpdates(updateGen, true)[Symbol.iterator]();
-    Listener = listener;
-    Owner = owner;
 
     for (;;) {
       Owner = root;
