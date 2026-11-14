@@ -32,20 +32,18 @@ export const send = (signal, value) => {
   return signal(value);
 };
 
-export function createRoot(fn, detachedOwner) {
-  let listener = Listener,
-    owner = Owner,
-    unowned = fn.length === 0,
-    current = detachedOwner === undefined ? owner : detachedOwner,
-    root = unowned
-      ? UNOWNED
-      : {
-          owned: null,
-          cleanups: null,
-          context: current ? current.context : null,
-          owner: current,
-        },
-    updateFn = unowned ? fn : () => fn(createDisposer(root));
+export function createRoot(fn, owner = Owner) {
+  let listener = Listener;
+  let unowned = fn.length === 0;
+  let root = unowned
+    ? UNOWNED
+    : {
+        owned: null,
+        cleanups: null,
+        context: owner ? owner.context : null,
+        owner,
+      };
+  let updateFn = unowned ? fn : () => fn(createDisposer(root));
 
   Owner = root;
   Listener = null;
@@ -58,20 +56,18 @@ export function createRoot(fn, detachedOwner) {
   }
 }
 
-export function* createComponentRoot(gen, detachedOwner) {
-  let listener = Listener,
-    owner = Owner,
-    unowned = gen.length === 0,
-    current = detachedOwner === undefined ? owner : detachedOwner,
-    root = unowned
-      ? UNOWNED
-      : {
-          owned: null,
-          cleanups: null,
-          context: current ? current.context : null,
-          owner: current,
-        },
-    updateGen = unowned ? gen : () => gen(createDisposer(root));
+export function* createComponentRoot(gen, owner = Owner) {
+  let listener = Listener;
+  let unowned = gen.length === 0;
+  let root = unowned
+    ? UNOWNED
+    : {
+        owned: null,
+        cleanups: null,
+        context: owner ? owner.context : null,
+        owner,
+      };
+  let updateGen = unowned ? gen : () => gen(createDisposer(root));
 
   let iter, step;
 
@@ -334,6 +330,8 @@ export function catchError(fn, handler) {
     Owner = Owner.owner;
   }
 }
+
+// TODO runComponentWithOwner
 
 export function runWithOwner(o, fn) {
   let prev = Owner;
