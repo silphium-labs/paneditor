@@ -187,6 +187,12 @@ export function createEffect(fn, value, options) {
   Effects ? Effects.push(c) : runComputation(c);
 }
 
+export function createRenderEffect(fn, value, options) {
+  let c = createComputation(fn, value, false, STALE);
+
+  runComputation(c);
+}
+
 export function createReaction(onInvalidate, options) {
   let fn;
   let c = createComputation(
@@ -464,7 +470,10 @@ function* runComponentComputation(node) {
       step = iter.next();
       if (step.done) break;
 
+      Listener = listener;
+      Owner = owner;
       yield step.value;
+      Listener = Owner = node;
     }
 
     nextValue = step.value;
