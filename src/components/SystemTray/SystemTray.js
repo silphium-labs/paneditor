@@ -5,17 +5,16 @@ import './SystemTray.css';
 
 // prettier-ignore
 function* SystemTray() {
-  yield* [
-    '<div { class: "systemTray" }>',
-      '<div { class: "leftIcons" }>',
-        // '<(Terminal) {size:20px}>', Terminal, '</>',
-      '</>',
+  yield  '<div { class: "systemTray" }>';
+    yield '<div { class: "leftIcons" }>';
+      // '<(Terminal) {size:20px}>', Terminal, '</>',
+    yield '</>';
 
-      // '<(AppTray)>', AppTray, '</>',
-      // '<(URL)>', URL, '</>',
-      '<(Clock)>', Clock, '</>',
-    '</>',
-  ];
+    // '<(AppTray)>', AppTray, '</>',
+    // '<(URL)>', URL, '</>',
+    yield '<(Clock)>'; yield Clock; 
+    yield '</>';
+  yield '</>';
 }
 
 export default SystemTray;

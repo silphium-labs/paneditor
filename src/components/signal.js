@@ -73,7 +73,7 @@ export function* createComponentRoot(gen, owner = Owner) {
   try {
     Owner = root;
     Listener = null;
-    iter = runComponentUpdates(() => gen(), true)[Symbol.iterator]();
+    iter = runComponentUpdates(gen, true)[Symbol.iterator]();
 
     for (;;) {
       Owner = root;
@@ -502,6 +502,7 @@ function* runComponentComputation(node) {
 
     node.updatedAt = time;
   }
+  return node;
 }
 
 function runComputation(node) {
@@ -544,6 +545,7 @@ function runComputation(node) {
 
     node.updatedAt = time;
   }
+  return node;
 }
 
 function createComputation(fn, init, pure = true, state = 0, user = false) {
