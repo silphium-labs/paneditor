@@ -18,6 +18,7 @@ let time = signal(printTime(new Date()));
 (function updateClock() {
   let now = new Date();
   setTimeout(updateClock, (62 - now.getSeconds()) * 1000);
+
   send(time, printTime(now));
 })();
 

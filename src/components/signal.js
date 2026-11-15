@@ -9,7 +9,6 @@
 export const equalFn = (a, b) => a === b;
 let signalOptions = { equals: equalFn };
 let ERROR = null;
-let runEffects = runQueue;
 let STALE = 1;
 let PENDING = 2;
 let UNOWNED = {
@@ -49,7 +48,7 @@ export function createRoot(fn, owner = Owner) {
   Listener = null;
 
   try {
-    return runUpdates(updateFn, true);
+    return runUpdates(updateFn, false);
   } finally {
     Listener = listener;
     Owner = owner;
@@ -68,14 +67,13 @@ export function* createComponentRoot(gen, owner = Owner) {
         owner,
       };
   let dispose = unowned ? null : createDisposer(root);
-  let updateGen = () => gen();
 
   let iter, step;
 
   try {
     Owner = root;
     Listener = null;
-    iter = runComponentUpdates(updateGen, true)[Symbol.iterator]();
+    iter = runComponentUpdates(() => gen(), true)[Symbol.iterator]();
 
     for (;;) {
       Owner = root;
@@ -98,24 +96,6 @@ export function* createComponentRoot(gen, owner = Owner) {
   } finally {
     Listener = listener;
     Owner = owner;
-  }
-}
-
-function* runComponentUpdates(comp, init) {
-  if (Updates) return yield* comp();
-  let wait = false;
-  if (!init) Updates = [];
-  if (Effects) wait = true;
-  else Effects = [];
-  ExecCount++;
-  try {
-    let res = yield* comp();
-    completeUpdates(wait);
-    return res;
-  } catch (err) {
-    if (!wait) Effects = null;
-    Updates = null;
-    handleError(err);
   }
 }
 
@@ -195,14 +175,13 @@ export function createComputed(fn, value, options) {
   runComputation(c);
 }
 
-export function createRenderEffect(fn, value, options) {
-  let c = createComputation(fn, value, false, STALE);
+export function createComponentEffect(gen, value, options) {
+  let c = createComputation(gen, value, false, STALE);
 
-  runComputation(c);
+  return runComponentComputation(c);
 }
 
 export function createEffect(fn, value, options) {
-  runEffects = runUserEffects;
   let user = !options || !options.render;
   let c = createComputation(fn, value, false, STALE, user);
   Effects ? Effects.push(c) : runComputation(c);
@@ -281,7 +260,7 @@ export function createSelector(source, fn, options) {
 }
 
 export function batch(fn) {
-  return runUpdates(fn, false);
+  return runUpdates(fn);
 }
 
 export function untrack(fn) {
@@ -347,19 +326,15 @@ export function runWithOwner(o, fn) {
   let prevListener = Listener;
   Owner = o;
   Listener = null;
+
   try {
-    return runUpdates(fn, true);
+    return runUpdates(fn, false);
   } catch (err) {
     handleError(err);
   } finally {
     Owner = prev;
     Listener = prevListener;
   }
-}
-
-export function resumeEffects(e) {
-  Effects.push.apply(Effects, e);
-  e.length = 0;
 }
 
 export function registerGraph(value) {
@@ -374,11 +349,13 @@ export function registerGraph(value) {
 
 export function createContext(defaultValue, options) {
   let id = Symbol('context');
+
   return { id, Provider: createProvider(id, options), defaultValue };
 }
 
 export function useContext(context) {
   let value;
+
   return Owner && Owner.context && (value = Owner.context[context.id]) !== undefined
     ? value
     : context.defaultValue;
@@ -402,14 +379,17 @@ export function readSignal() {
     else {
       let updates = Updates;
       Updates = null;
-      runUpdates(() => lookUpstream(this), false);
+      runUpdates(() => lookUpstream(this));
       Updates = updates;
     }
   }
+
   if (Listener) {
     let observers = this.observers;
+
     if (!observers || observers[observers.length - 1] !== Listener) {
       let sSlot = observers ? observers.length : 0;
+
       if (!Listener.sources) {
         Listener.sources = [this];
         Listener.sourceSlots = [sSlot];
@@ -417,6 +397,7 @@ export function readSignal() {
         Listener.sources.push(this);
         Listener.sourceSlots.push(sSlot);
       }
+
       if (!observers) {
         this.observers = [Listener];
         this.observerSlots = [Listener.sources.length - 1];
@@ -432,8 +413,10 @@ export function readSignal() {
 
 export function writeSignal(node, value, isComp) {
   let current = node.value;
+
   if (!node.comparator || !node.comparator(current, value)) {
     node.value = value;
+
     if (node.observers && node.observers.length) {
       runUpdates(() => {
         for (let i = 0; i < node.observers.length; i += 1) {
@@ -442,29 +425,89 @@ export function writeSignal(node, value, isComp) {
           if (!o.state) {
             if (o.pure) Updates.push(o);
             else Effects.push(o);
+
             if (o.observers) markDownstream(o);
           }
+
           o.state = STALE;
         }
+
         if (Updates.length > 10e5) {
           Updates = [];
+
           throw new Error();
         }
-      }, false);
+      });
     }
   }
   return value;
 }
 
-function runComputation(node) {
+function* runComponentComputation(node) {
   if (!node.fn) return;
+
   cleanNode(node, true);
+
   let time = ExecCount;
   let { value } = node;
   let nextValue;
-  let owner = Owner,
-    listener = Listener;
+  let owner = Owner;
+  let listener = Listener;
+
   Listener = Owner = node;
+
+  try {
+    let iter = node.fn(value)[Symbol.iterator]();
+    let step;
+
+    for (;;) {
+      step = iter.next();
+      if (step.done) break;
+
+      yield step.value;
+    }
+
+    nextValue = step.value;
+  } catch (err) {
+    if (node.pure) {
+      node.state = STALE;
+      node.owned && node.owned.forEach((n) => cleanNode(n));
+      node.owned = null;
+    }
+
+    // won't be picked up until next update
+    node.updatedAt = time + 1;
+
+    return handleError(err);
+  } finally {
+    Listener = listener;
+    Owner = owner;
+  }
+
+  if (!node.updatedAt || node.updatedAt <= time) {
+    if (node.updatedAt != null && 'observers' in node) {
+      writeSignal(node, nextValue, true);
+    } else {
+      node.value = nextValue;
+    }
+
+    node.updatedAt = time;
+  }
+}
+
+function runComputation(node) {
+  if (!node.fn) return;
+
+  cleanNode(node, true);
+
+  let time = ExecCount;
+  let { value } = node;
+  let nextValue;
+  let owner = Owner;
+  let listener = Listener;
+
+  Listener = Owner = node;
+
   try {
     nextValue = node.fn(value);
   } catch (err) {
@@ -473,17 +516,23 @@ function runComputation(node) {
       node.owned && node.owned.forEach((n) => cleanNode(n));
       node.owned = null;
     }
+
     // won't be picked up until next update
     node.updatedAt = time + 1;
+
     return handleError(err);
   } finally {
     Listener = listener;
     Owner = owner;
   }
+
   if (!node.updatedAt || node.updatedAt <= time) {
     if (node.updatedAt != null && 'observers' in node) {
       writeSignal(node, nextValue, true);
-    } else node.value = nextValue;
+    } else {
+      node.value = nextValue;
+    }
+
     node.updatedAt = time;
   }
 }
@@ -491,7 +540,7 @@ function runComputation(node) {
 function createComputation(fn, init, pure = true, state = 0, user = false) {
   let c = {
     fn,
-    state: state,
+    state,
     updatedAt: null,
     owned: null,
     sources: null,
@@ -528,19 +577,49 @@ function runTop(node) {
     } else if (node.state === PENDING) {
       let updates = Updates;
       Updates = null;
-      runUpdates(() => lookUpstream(node, ancestors[0]), false);
+      runUpdates(() => lookUpstream(node, ancestors[0]));
       Updates = updates;
     }
   }
 }
 
-function runUpdates(fn, init) {
-  if (Updates) return fn();
+function runQueue(queue) {
+  let i;
+  let userLength = 0;
+  for (i = 0; i < queue.length; i++) {
+    let e = queue[i];
+    if (e.user) queue[userLength++] = e;
+    else runTop(e);
+  }
+  queue.length = userLength;
+  for (i = 0; i < userLength; i++) runTop(queue[i]);
+}
+
+function* runComponentUpdates(comp, init) {
+  if (Updates) return yield* comp();
   let wait = false;
   if (!init) Updates = [];
   if (Effects) wait = true;
   else Effects = [];
   ExecCount++;
+  try {
+    let res = yield* comp();
+    completeUpdates(wait);
+    return res;
+  } catch (err) {
+    if (!wait) Effects = null;
+    Updates = null;
+    handleError(err);
+  }
+}
+
+function runUpdates(fn, root = true) {
+  if (Updates) return fn();
+  let wait = false;
+  if (root) Updates = [];
+  if (Effects) wait = true;
+  else Effects = [];
+  ExecCount++; // TODO only if root?
   try {
     let res = fn();
     completeUpdates(wait);
@@ -558,26 +637,14 @@ function completeUpdates(wait) {
     Updates = null;
   }
   if (wait) return;
-  let res;
+
   let e = Effects;
   Effects = null;
-  if (e.length) runUpdates(() => runEffects(e), false);
-  if (res) res();
-}
-
-function runQueue(queue) {
-  for (let i = 0; i < queue.length; i++) runTop(queue[i]);
-}
-
-function runUserEffects(queue) {
-  let i,
-    userLength = 0;
-  for (i = 0; i < queue.length; i++) {
-    let e = queue[i];
-    if (!e.user) runTop(e);
-    else queue[userLength++] = e;
+  if (e.length) {
+    runUpdates(() => runQueue(e), false);
+    // runQueue(e);
+    // completeUpdates(false);
   }
-  for (i = 0; i < userLength; i++) runTop(queue[i]);
 }
 
 function lookUpstream(node, ignore) {
