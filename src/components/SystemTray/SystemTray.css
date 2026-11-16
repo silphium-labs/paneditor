@@ -11,6 +11,14 @@
   display: flex;
 }
 
+.systemTray .rightIcons {
+  display: flex;
+}
+
 .systemTray .leftIcons > svg {
+  margin: 0 6px;
+}
+
+.systemTray .rightIcons > svg {
   margin: 0 6px;
 }

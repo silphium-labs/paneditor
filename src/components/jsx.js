@@ -58,6 +58,10 @@ let getReturnValue = (iterable) => {
   return step.value;
 };
 
+function* wrap(value) {
+  return value;
+}
+
 export const render = (component, htmlRoot) => {
   let iter = __render(() => component, htmlRoot)[Symbol.iterator]();
   let step;
@@ -68,11 +72,7 @@ export const render = (component, htmlRoot) => {
   return step.value;
 };
 
-function* wrap(value) {
-  return value;
-}
-
-function __render(component, htmlRoot) {
+function __render(component, htmlRoot, startIndex_, endIndex) {
   let firstRun = true;
 
   return createComponentRoot(() => {
@@ -83,6 +83,8 @@ function __render(component, htmlRoot) {
       let resultPath = null;
       let htmlNode = htmlRoot;
       let componentPath = null;
+      let startIndex = startIndex_;
+      let startIndexes = [startIndex_];
 
       do {
         loop: while (!(step = iter.next()).done) {
@@ -108,7 +110,12 @@ function __render(component, htmlRoot) {
                 let fn = node[1];
 
                 iter = untrackComponent(() => {
-                  return __render(() => fn(node), htmlNode);
+                  return __render(
+                    () => fn(node),
+                    htmlNode,
+                    htmlNode.children.length,
+                    htmlNode.children.length,
+                  );
                 });
                 continue loop;
               }
@@ -116,15 +123,15 @@ function __render(component, htmlRoot) {
             }
 
             case OpenTag: {
-              if (tag.value.flags.component || componentPath) {
+              let { flags, name, literalValue, attributes, selfClosing } = tag.value;
+
+              if (flags.component || componentPath) {
                 stack.push({ iter, resultPath, componentPath });
                 componentPath = null;
 
                 componentPath = Path.advance(componentPath, tag_);
               } else {
                 resultPath = Path.advance(resultPath, tag_);
-
-                let { name, literalValue, attributes } = tag.value;
 
                 let newNode = name ? document.createElement(name.description) : null;
 
@@ -141,16 +148,19 @@ function __render(component, htmlRoot) {
                   }
                 }
 
-                htmlNode.append(newNode);
+                if (startIndex !== undefined && startIndex < htmlNode.children.length) {
+                  htmlNode.replaceChild(newNode, htmlNode.children[startIndex]);
+                } else {
+                  htmlNode.append(newNode);
+                }
+
+                if (!selfClosing) {
+                  startIndexes.push(0);
+                }
 
                 htmlNode = name ? newNode : htmlNode;
               }
 
-              if (tag.value.selfClosing) {
-                if (resultPath?.parent) {
-                  resultPath = resultPath.parent;
-                }
-              }
               break;
             }
 
@@ -171,6 +181,8 @@ function __render(component, htmlRoot) {
             }
 
             case CloseTag: {
+              startIndex = startIndexes.pop() + 1;
+
               if (componentPath) {
                 let { depth } = componentPath;
                 componentPath = Path.advance(componentPath, tag_);
@@ -185,7 +197,12 @@ function __render(component, htmlRoot) {
                   let fn = node[1];
 
                   iter = untrackComponent(() => {
-                    return __render(() => fn(node), htmlNode);
+                    return __render(
+                      () => fn(node),
+                      htmlNode,
+                      htmlNode.children.length,
+                      htmlNode.children.length,
+                    );
                   });
 
                   continue loop;
@@ -229,7 +246,11 @@ function __render(component, htmlRoot) {
 
         if (!stack.length) break;
 
-        let finishedNode = resultPath?.node || htmlNode.agAST || htmlNode.lastChild.agAST;
+        if (!htmlNode.agAST) {
+          htmlNode = htmlNode.lastChild;
+        }
+
+        let finishedNode = resultPath?.node || htmlNode.agAST;
         ({ iter, resultPath, componentPath } = stack.pop());
         htmlNode = htmlNode.parentElement;
 
@@ -240,9 +261,9 @@ function __render(component, htmlRoot) {
         }
       } while (true);
 
+      firstRun = false;
+
       return wrap(step.value);
     });
   });
-
-  firstRun = false;
 }
