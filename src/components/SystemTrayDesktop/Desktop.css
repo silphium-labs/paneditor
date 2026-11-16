@@ -2,5 +2,20 @@
 }
 
 .desktop .desk {
-  background-color: red;
+  background-color: #b5b5b5;
+  display: block;
+  height: 80%;
+  margin-top: 10%;
+  width: 20px;
+
+  transform: perspective(50px) rotateX(40deg);
+
+  transition: 0.2s;
+}
+
+.desktop:hover .desk {
+  background-color: #dedede;
+  display: block;
+
+  transform: perspective(50px) rotateX(60deg) translateY(2px);
 }
