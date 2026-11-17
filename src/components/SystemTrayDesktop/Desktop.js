@@ -1,12 +1,21 @@
-/* global setTimeout */
 // import { createEffect } from 'solid-js';
 
-import { printString } from 'agast';
-// import { send, signal } from '../signal.js';
 import './Desktop.css';
+import { on } from '../signal.js';
+import { jsx, native } from '../jsx.js';
 
 export function* __Desktop() {
-  yield* ['<span { class: "desktop" }>', '<span { class: "desk" }>', '</>', '</>'];
+  let { click } = yield* jsx(
+    '<(span) { class: "desktop" } @{click}>',
+    native,
+    '<span { class: "desk" }>',
+    '</>',
+    '</>',
+  );
+
+  on(click, () => {
+    debugger;
+  });
 }
 
 function Desktop() {

@@ -17,7 +17,6 @@ let UNOWNED = {
   context: null,
   owner: null,
 };
-let NO_INIT = {};
 let Owner = null;
 let Listener = null;
 let Updates = null;
@@ -226,11 +225,7 @@ export function createMemo(fn, value, options) {
   return readSignal.bind(c);
 }
 
-function isPromise(v) {
-  return v && typeof v === 'object' && 'then' in v;
-}
-
-export function createSelector(source, fn, options) {
+export function createSelector(source, fn) {
   let subs = new Map();
   let node = createComputation(
     (p) => {

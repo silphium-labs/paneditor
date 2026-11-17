@@ -1,18 +1,10 @@
 /* global document */
-import {
-  arrayValues,
-  freezeRecord,
-  isArray,
-  isFunction,
-  recordEntries,
-} from '@bablr/agast-helpers/object';
+import { freezeRecord, isFunction, recordEntries } from '@bablr/agast-helpers/object';
 import { Path } from '@bablr/agast-helpers/path';
 import {
-  buildNode,
   buildOpenTag,
   CloseTag,
   Function,
-  isValidNode,
   LiteralTag,
   OpenTag,
   parseOpen,
@@ -22,14 +14,7 @@ import {
   traverseChildrenInner,
   TreeNode,
 } from 'agast';
-import { streamFromTree } from 'bablr/enhanceable';
-import {
-  untrackComponent,
-  createRoot,
-  createComponentRoot,
-  createComponentEffect,
-  untrack,
-} from './signal.js';
+import { untrackComponent, createComponentRoot, createComponentEffect } from './signal.js';
 
 let porcelain = { porcelain: true };
 
@@ -49,17 +34,25 @@ export function* native(dom) {
   yield '</>';
 }
 
-let getReturnValue = (iterable) => {
-  let iter = iterable[Symbol.iterator]();
-  let step;
-  do {
-    step = iter.next();
-  } while (!step.done);
-  return step.value;
-};
-
 function* wrap(value) {
   return value;
+}
+
+export function* jsx() {
+  let signals = Object.create(null);
+
+  for (let i = 0; i < arguments.length; i++) {
+    let arg = arguments[i];
+    let newSignals = yield arg;
+    if (newSignals) {
+      for (let key in newSignals) {
+        if (key in signals) throw new Error();
+        signals[key] = newSignals[key];
+      }
+    }
+  }
+
+  return signals;
 }
 
 export const render = (component, htmlRoot) => {
@@ -73,8 +66,6 @@ export const render = (component, htmlRoot) => {
 };
 
 function __render(component, htmlRoot, startIndex_, endIndex) {
-  let firstRun = true;
-
   return createComponentRoot(() => {
     return createComponentEffect(() => {
       let iter = component()[Symbol.iterator]();
@@ -260,8 +251,6 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
           resultPath = Path.advance(resultPath, finishedNode);
         }
       } while (true);
-
-      firstRun = false;
 
       return wrap(step.value);
     });
