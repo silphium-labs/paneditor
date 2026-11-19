@@ -43,8 +43,8 @@ function ContextPane() {
     );
   };
 
-  let selfClosing = () => {
-    return paneRoot().flags.token;
+  let isSelfClosing = () => {
+    return paneRoot().isToken;
   };
 
   let properties = () => {
@@ -59,7 +59,7 @@ function ContextPane() {
         let { reference, node } = value;
 
         let intrinsicFrag =
-          node.flags.token && !reference.value.flags.hasGap && !node.flags.hasGap
+          node.isToken && !reference.value.flags.hasGap && !node.flags.hasGap
             ? ` ${printString(getCooked(node))}`
             : '';
 
@@ -162,11 +162,11 @@ function ContextPane() {
               const attributes_ = printAttributes(paneRoot()?.attributes);
               return attributes_ ? ` ${attributes_}` : '';
             }}
-            {selfClosing() ? ' />' : '>'}
+            {isSelfClosing() ? ' />' : '>'}
           </div>
           <div class="properties">{properties}</div>
           <div class={classNames({ title: true, selected: !isOuter() })}>
-            {selfClosing() ? '' : '</>'}
+            {isSelfClosing() ? '' : '</>'}
           </div>
           <br />
           {/* <div>width: {() => widths.get(paneRoot())}</div> */}

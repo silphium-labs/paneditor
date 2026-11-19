@@ -89,21 +89,14 @@ function Environment() {
       let pathNode = range[0];
       let node = nodeBindings.get(pathNode);
 
-      if (
-        node.flags.token &&
-        !node.flags.hasGap &&
-        !pathNode.dataset.path.endsWith('$')
-      ) {
+      if (node.isToken && !node.flags.hasGap && !pathNode.dataset.path.endsWith('$')) {
         pathNode = pathNode.parentNode;
         node = nodeBindings.get(pathNode);
       }
 
       return node;
     } else {
-      return getCommonParent(
-        nodeBindings.get(range[0]),
-        nodeBindings.get(range[1]),
-      );
+      return getCommonParent(nodeBindings.get(range[0]), nodeBindings.get(range[1]));
     }
   });
 
@@ -112,9 +105,7 @@ function Environment() {
       <BABLRSolidContext.Provider value={bablrContext}>
         <EditContext.Provider>
           <DocumentContext.Provider value={{ document, setDocument }}>
-            <SelectionContext.Provider
-              value={{ selectionRoot, selectedRange, setSelectedRange }}
-            >
+            <SelectionContext.Provider value={{ selectionRoot, selectedRange, setSelectedRange }}>
               <div class="environment">
                 <Editor />
                 <ContextPane />

@@ -79,7 +79,7 @@ export const getWidth = (node) => {
   if (isGapNode(node)) return 1;
   if (isNullNode(node)) return 0;
 
-  return node.flags.token
+  return node.isToken
     ? [...btree.traverse(node.children)].reduce((w, tag) => {
         switch (tag.type) {
           case LiteralTag:
@@ -220,7 +220,7 @@ function Editor() {
             };
 
             let contentEditable = () =>
-              selected() && store.editing && node().flags.token ? { contenteditable: true } : {};
+              selected() && store.editing && node().isToken ? { contenteditable: true } : {};
 
             let draggable = () =>
               !store.editing && selected() && store.selectionState === 'selected'
@@ -237,7 +237,7 @@ function Editor() {
                 class={classNames({
                   node: true,
                   escape: reference.value.name === '@',
-                  token: node().flags.token,
+                  token: node().isToken,
                   trivia: reference.value.name === '#',
                   hasGap: node().flags.hasGap,
                   selected: selected(),
@@ -513,7 +513,7 @@ function Editor() {
 
           let token = nodeBindings.get(selected[0]);
 
-          if (!token.flags.token) throw new Error();
+          if (!token.isToken) throw new Error();
 
           // this prevents you double clicking on a different node to enter its edit mode
           // as you leave your edit mode, the target changes
@@ -636,7 +636,7 @@ function Editor() {
 
           let token = nodeBindings.get(selected[0]);
 
-          if (!token.flags.token) throw new Error();
+          if (!token.isToken) throw new Error();
 
           doSet(
             selected[0],
@@ -752,7 +752,7 @@ function Editor() {
 
         let token = nodeBindings.get(selected[0]);
 
-        if (!token.flags.token) throw new Error();
+        if (!token.isToken) throw new Error();
 
         doSet(
           selected[0],

@@ -19,11 +19,14 @@ import { untrackComponent, createComponentRoot, createComponentEffect } from './
 let porcelain = { porcelain: true };
 
 export function* native(dom) {
-  let { flags, type, name, literalValue, attributes, selfClosing } = parseOpen(dom[0]);
+  let { flags, type, name, literalValue, attributes, isSelfClosing } = parseOpen(dom[0]);
 
   flags = freezeRecord({ ...flags, component: false });
 
-  yield printTag(buildOpenTag(flags, type, name, literalValue, attributes, selfClosing), porcelain);
+  yield printTag(
+    buildOpenTag(flags, type, name, literalValue, attributes, isSelfClosing),
+    porcelain,
+  );
 
   for (let child of traverseChildrenInner(dom)) {
     if (!isFunction(child)) {
@@ -114,7 +117,7 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
             }
 
             case OpenTag: {
-              let { flags, name, literalValue, attributes, selfClosing } = tag.value;
+              let { flags, name, literalValue, attributes, isSelfClosing } = tag.value;
 
               if (flags.component || componentPath) {
                 stack.push({ iter, resultPath, componentPath });
@@ -145,7 +148,7 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
                   htmlNode.append(newNode);
                 }
 
-                if (!selfClosing) {
+                if (!isSelfClosing) {
                   startIndexes.push(0);
                 }
 
@@ -164,7 +167,7 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
 
               componentPath = Path.advance(componentPath, fn);
 
-              if (parseTag(openTag).value.selfClosing) {
+              if (parseTag(openTag).value.isSelfClosing) {
                 throw new Error();
               }
 
