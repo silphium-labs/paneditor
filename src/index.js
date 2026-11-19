@@ -8,11 +8,24 @@ import './index.css';
 import { parseOpen, printObject, printTag } from 'agast';
 import { native, render } from './components/jsx.js';
 import System from './components/System/System.js';
+import { send, signal } from './components/signal.js';
 
 globalThis.printTag = printTag;
 
 enableDragDropTouch();
 
+let keydown = signal();
+let keyup = signal();
+
+let { body } = document;
 let root = document.getElementById('root');
 
-render([`<(System) { class: 'success' }>`, System, '</>'], root);
+body.addEventListener('keydown', () => {
+  send(keydown, {});
+});
+
+body.addEventListener('keyup', () => {
+  send(keyup, {});
+});
+
+render([`<(System) { class: 'success' }>`, System({ keydown, keyup }), '</>'], root);

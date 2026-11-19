@@ -1,0 +1,40 @@
+.terminal {
+  display: block;
+  position: relative;
+  width: 36px;
+  height: 100%;
+}
+
+.terminal .icon::before {
+  content: ' ';
+  display: block;
+  position: absolute;
+
+  height: 3px;
+  width: 13px;
+  left: 14px;
+  bottom: 2px;
+  border-bottom: 3px solid #b5b5b5;
+}
+
+.terminal:hover .icon::before {
+  border-bottom-color: #dedede;
+}
+
+.terminal .icon::after {
+  position: absolute;
+  content: ' ';
+  border-top: 3px solid #b5b5b5;
+  border-right: 3px solid #b5b5b5;
+  display: block;
+  height: 8px;
+  width: 8px;
+  bottom: 8px;
+
+  transform: rotateZ(45deg);
+}
+
+.terminal:hover .icon::after {
+  border-top-color: #dedede;
+  border-right-color: #dedede;
+}

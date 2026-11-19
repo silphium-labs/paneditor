@@ -1,21 +1,21 @@
 // import URL from '../URL/URL.js';
-import Clock from '../SystemTrayClock/Clock.js';
+import Terminal from '../SystemTrayTerminal/Terminal.js';
 import Desktop from '../SystemTrayDesktop/Desktop.js';
-// import { Terminal, FolderTree, SquarePlus } from 'lucide-solid';
+import Clock from '../SystemTrayClock/Clock.js';
 import './SystemTray.css';
 
 // prettier-ignore
-function* SystemTray() {
+let SystemTray = ({ activeApp }) => function* () {
   yield* [
    '<div { class: "systemTray" }>',
     '<div { class: "leftIcons" }>',
-      // '<(Terminal) {size:20px}>', Terminal, '</>',
+      '<(Terminal)>', Terminal({ activeApp }), '</>',
     '</>',
     '<div { class: "rightIcons" }>',
       // '<(AppTray)>', AppTray, '</>',
       // '<(URL)>', URL, '</>',
-      '<(Desktop)>', Desktop, '</>',
-      '<(SystemTrayClock)>', Clock, '</>',
+      '<(Desktop)>', Desktop({ activeApp }), '</>',
+      '<(SystemTrayClock)>', Clock(), '</>',
     '</>',
   '</>',
   ];

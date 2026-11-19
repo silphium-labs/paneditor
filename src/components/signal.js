@@ -27,7 +27,7 @@ export const getOwner = () => Owner;
 export const getListener = () => Listener;
 
 export const send = (signal, value) => {
-  return signal(value);
+  return signal(() => value);
 };
 
 export function createRoot(fn, owner = Owner) {
@@ -280,7 +280,9 @@ export function on(deps, fn, options) {
   let isArray = Array.isArray(deps);
   let prevInput;
   let defer = options && options.defer;
-  return (prevValue) => {
+
+  let first = true;
+  return createEffect((prevValue) => {
     let input;
     if (isArray) {
       input = Array(deps.length);
@@ -288,12 +290,17 @@ export function on(deps, fn, options) {
     } else input = deps();
     if (defer) {
       defer = false;
+      first = false;
       return prevValue;
     }
-    let result = untrack(() => fn(input, prevInput, prevValue));
+    let result;
+    if (!first) {
+      untrack(() => fn(input, prevInput, prevValue));
+    }
     prevInput = input;
+    first = false;
     return result;
-  };
+  });
 }
 
 export function onMount(fn) {

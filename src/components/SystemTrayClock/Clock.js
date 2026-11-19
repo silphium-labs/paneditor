@@ -22,8 +22,6 @@ let time = signal(printTime(new Date()));
   send(time, printTime(now));
 })();
 
-function Clock() {
-  return __Clock({ time });
-}
+let Clock = (props) => () => __Clock({ time });
 
 export default Clock;

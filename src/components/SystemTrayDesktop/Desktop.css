@@ -12,7 +12,6 @@
 
 .desktop:hover .desk {
   background-color: #dedede;
-  display: block;
 
   transform: perspective(50px) rotateX(60deg) translateY(2px);
 }

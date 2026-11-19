@@ -1,6 +1,6 @@
 /* global document */
 import { freezeRecord, isFunction, recordEntries } from '@bablr/agast-helpers/object';
-import { Path } from '@bablr/agast-helpers/path';
+import { buildFlags, Path } from '@bablr/agast-helpers/path';
 import {
   buildOpenTag,
   CloseTag,
@@ -14,17 +14,24 @@ import {
   traverseChildrenInner,
   TreeNode,
 } from 'agast';
-import { untrackComponent, createComponentRoot, createComponentEffect } from './signal.js';
+import {
+  untrackComponent,
+  createComponentRoot,
+  createComponentEffect,
+  send,
+  signal,
+} from './signal.js';
 
 let porcelain = { porcelain: true };
 
 export function* native(dom) {
-  let { flags, type, name, literalValue, attributes, isSelfClosing } = parseOpen(dom[0]);
+  let open = parseOpen(dom[0]);
+  let { type, name, literalValue, attributes, events, isSelfClosing } = open;
 
-  flags = freezeRecord({ ...flags, component: false });
+  let flags = freezeRecord({ ...buildFlags(open), component: false });
 
   yield printTag(
-    buildOpenTag(flags, type, name, literalValue, attributes, isSelfClosing),
+    buildOpenTag(flags, type, name, literalValue, attributes, events, isSelfClosing),
     porcelain,
   );
 
@@ -79,24 +86,27 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
       let componentPath = null;
       let startIndex = startIndex_;
       let startIndexes = [startIndex_];
+      let returnValue = undefined;
 
       do {
-        loop: while (!(step = iter.next()).done) {
+        loop: while (!(step = iter.next(returnValue)).done) {
           let tag_ = step.value;
           let tag = parseTag(tag_);
+
+          returnValue = undefined;
 
           switch (tag.type) {
             case TreeNode:
             case Property: {
               let node = tag.type === Property ? tag.value[4] : tag.value;
               let sigilTag = parseTag(node[0]);
-              if (sigilTag.value.flags.component || componentPath) {
+              if (sigilTag.value.isComponent || componentPath) {
                 componentPath = Path.advance(componentPath, tag_);
               } else {
                 resultPath = Path.advance(resultPath, tag_);
               }
 
-              if (sigilTag.value.flags.component) {
+              if (sigilTag.value.isComponent) {
                 stack.push({ iter, resultPath, componentPath });
                 componentPath = null;
                 resultPath = null;
@@ -117,9 +127,10 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
             }
 
             case OpenTag: {
-              let { flags, name, literalValue, attributes, isSelfClosing } = tag.value;
+              let { isComponent, name, literalValue, attributes, events, isSelfClosing } =
+                tag.value;
 
-              if (flags.component || componentPath) {
+              if (isComponent || componentPath) {
                 stack.push({ iter, resultPath, componentPath });
                 componentPath = null;
 
@@ -148,11 +159,20 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
                   htmlNode.append(newNode);
                 }
 
-                if (!isSelfClosing) {
-                  startIndexes.push(0);
+                returnValue = Object.create(null);
+                for (let { 0: name, 1: localName } of recordEntries(events)) {
+                  let signal_ = signal();
+                  newNode.addEventListener(name, () => {
+                    send(signal_, {});
+                  });
+                  returnValue[localName] = signal_;
                 }
 
-                htmlNode = name ? newNode : htmlNode;
+                if (!isSelfClosing) {
+                  startIndexes.push(startIndex);
+
+                  htmlNode = name ? newNode : htmlNode;
+                }
               }
 
               break;
@@ -161,8 +181,7 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
             case Function: {
               let fn = tag.value;
 
-              if (!componentPath || !componentPath.sigilTag.value.flags.component)
-                throw new Error();
+              if (!componentPath || !componentPath.sigilTag.value.isComponent) throw new Error();
               let openTag = componentPath.node[0];
 
               componentPath = Path.advance(componentPath, fn);
@@ -183,7 +202,7 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
 
                 let finishedPath = depth ? componentPath.tagPathAt(-1).inner : componentPath;
 
-                if (finishedPath.sigilTag.value.flags.component) {
+                if (finishedPath.sigilTag.value.isComponent) {
                   componentPath = null;
                   resultPath = null;
 

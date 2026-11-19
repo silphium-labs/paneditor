@@ -1,0 +1,87 @@
+@keyframes blinker {
+  50% {
+    opacity: 0;
+  }
+}
+
+.terminal-app {
+  min-height: 100%;
+
+  background-color: rgb(27, 24, 24);
+  color: white;
+
+  font-size: 16px;
+
+  padding: 4px 8px;
+
+  node[name='Directory'] {
+    color: rgb(121, 121, 255);
+  }
+
+  node[name='String'] {
+    color: rgb(162, 207, 28);
+  }
+
+  node[name='StringContent'] {
+    color: rgb(162, 207, 28);
+  }
+
+  node[name='TemplateString'] > node.token {
+    color: rgb(162, 207, 28);
+  }
+
+  .output {
+    margin-left: 16px;
+  }
+
+  .return {
+    height: 20px;
+    padding: 2px 4px;
+  }
+
+  .return > .message:not(:empty) {
+    background-color: #434343;
+    padding: 2px 4px;
+  }
+
+  .return.failed > .message {
+    background-color: #843030;
+  }
+
+  .return:not(.running):not(.done) {
+    background-color: transparent;
+  }
+
+  .return.running > .status,
+  .return.done > .status {
+    width: 8px;
+    height: 8px;
+    margin-right: 8px;
+    border-radius: 4px;
+    display: inline-block;
+    background-color: rgb(116, 116, 116);
+  }
+
+  .return.done:not(.failed) > .status {
+    background-color: rgb(0, 134, 16);
+  }
+
+  .return.done.failed > .status {
+    background-color: rgb(187, 20, 45);
+  }
+
+  .cursor {
+    position: relative;
+  }
+
+  .cursor::after {
+    content: ' ';
+    position: absolute;
+    display: inline-block;
+    opacity: 1;
+    top: 2px;
+    height: 15px;
+    animation: blinker 1.6s step-start infinite;
+    border-right: 1px solid white;
+  }
+}
