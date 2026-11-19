@@ -169,7 +169,7 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
                 }
 
                 if (!isSelfClosing) {
-                  startIndexes.push(startIndex);
+                  startIndexes.push(++startIndex);
 
                   htmlNode = name ? newNode : htmlNode;
                 }

@@ -1,5 +1,3 @@
-// import { createEffect } from 'solid-js';
-
 import './TerminalApp.css';
 import { on, send, signal } from '../../signal.js';
 import { printString } from 'agast';
