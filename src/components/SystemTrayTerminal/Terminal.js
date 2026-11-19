@@ -1,5 +1,3 @@
-// import { createEffect } from 'solid-js';
-
 import TerminalApp from '../Apps/TerminalApp/TerminalApp.js';
 
 import './Terminal.css';

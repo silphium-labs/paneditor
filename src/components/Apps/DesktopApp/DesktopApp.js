@@ -1,5 +1,3 @@
-// import { createEffect } from 'solid-js';
-
 import './DesktopApp.css';
 import { on } from '../../signal.js';
 import { jsx } from '../../jsx.js';

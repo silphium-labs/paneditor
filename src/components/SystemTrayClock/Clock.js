@@ -1,5 +1,4 @@
 /* global setTimeout */
-// import { createEffect } from 'solid-js';
 
 import { printString } from 'agast';
 import { send, signal } from '../signal.js';
