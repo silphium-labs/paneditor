@@ -2,6 +2,26 @@ import './TerminalApp.css';
 import { on, send, signal } from '../../signal.js';
 import { printString } from 'agast';
 
+let applyEvent = (str, evt) => {
+  let result = str || '';
+
+  let { code, key, getModifiers } = evt;
+
+  let modifiers = getModifiers();
+
+  if (key != null) {
+    let chr = code[3];
+    if (!(modifiers.Shift || modifiers.CapsLock)) {
+      chr = chr.toLowerCase();
+    }
+    result += chr;
+  } else if (code === 'Backspace') {
+    result = result.slice(0, -1);
+  }
+
+  return result;
+};
+
 // prettier-ignore
 export function* __TerminalApp({ command, keydown }) {
   yield '<div { class: "terminal-app" }>';
@@ -25,8 +45,8 @@ export function* __TerminalApp({ command, keydown }) {
   yield   '</>';
   yield '</>';
 
-  on(keydown, () => {
-    send(command, command() ? command() + 'a' : 'a');
+  on(keydown, (e) => {
+    send(command, applyEvent(command(), e));
   });
 }
 

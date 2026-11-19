@@ -6,7 +6,7 @@ import { enableDragDropTouch } from 'drag-drop-touch';
 
 import './index.css';
 import { parseOpen, printObject, printTag } from 'agast';
-import { native, render } from './components/jsx.js';
+import { buildEventFacade, native, render } from './components/jsx.js';
 import System from './components/System/System.js';
 import { send, signal } from './components/signal.js';
 
@@ -20,12 +20,12 @@ let keyup = signal();
 let { body } = document;
 let root = document.getElementById('root');
 
-body.addEventListener('keydown', () => {
-  send(keydown, {});
+body.addEventListener('keydown', (e) => {
+  send(keydown, buildEventFacade(e));
 });
 
-body.addEventListener('keyup', () => {
-  send(keyup, {});
+body.addEventListener('keyup', (e) => {
+  send(keyup, buildEventFacade(e));
 });
 
 render([`<(System) { class: 'success' }>`, System({ keydown, keyup }), '</>'], root);

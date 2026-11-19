@@ -75,6 +75,48 @@ export const render = (component, htmlRoot) => {
   return step.value;
 };
 
+let allModifiers = [
+  'Fn',
+  'Hyper',
+  'OS',
+  'Super',
+  'Win',
+  'Control',
+  'Shift',
+  'Alt',
+  'Meta',
+  'Accel',
+  'ScrollLock',
+  'CapsLock',
+  'SymbolLock',
+];
+
+export function buildEventFacade(e) {
+  switch (e.type) {
+    case 'keydown':
+    case 'keyup': {
+      let { code, key } = e;
+
+      let getModifiers = () => {
+        let modifiers = {};
+        for (let modifier of allModifiers) {
+          modifiers[modifier] = e.getModifierState(modifier);
+        }
+        return modifiers;
+      };
+
+      if (key[0] >= 'A' && key[0] <= 'Z' && key.length > 1) {
+        key = null;
+      }
+
+      return freezeRecord({ code, key, getModifiers });
+    }
+
+    default:
+      return freezeRecord({});
+  }
+}
+
 function __render(component, htmlRoot, startIndex_, endIndex) {
   return createComponentRoot(() => {
     return createComponentEffect(() => {
@@ -162,8 +204,8 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
                 returnValue = Object.create(null);
                 for (let { 0: name, 1: localName } of recordEntries(events)) {
                   let signal_ = signal();
-                  newNode.addEventListener(name, () => {
-                    send(signal_, {});
+                  newNode.addEventListener(name, (e) => {
+                    send(signal_, buildEventFacade(e));
                   });
                   returnValue[localName] = signal_;
                 }

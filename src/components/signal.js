@@ -27,6 +27,7 @@ export const getOwner = () => Owner;
 export const getListener = () => Listener;
 
 export const send = (signal, value) => {
+  if (value === undefined) throw new Error('cannot send undefined');
   return signal(() => value);
 };
 
