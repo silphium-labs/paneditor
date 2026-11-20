@@ -126,8 +126,8 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
       let resultPath = null;
       let htmlNode = htmlRoot;
       let componentPath = null;
-      let startIndex = startIndex_;
-      let startIndexes = [startIndex_];
+      let startIndex = startIndex_ || 0;
+      let startIndexes = [];
       let returnValue = undefined;
 
       do {
@@ -177,6 +177,9 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
                 componentPath = null;
 
                 componentPath = Path.advance(componentPath, tag_);
+
+                startIndexes.push(startIndex);
+                startIndex = 0;
               } else {
                 resultPath = Path.advance(resultPath, tag_);
 
@@ -211,9 +214,12 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
                 }
 
                 if (!isSelfClosing) {
-                  startIndexes.push(++startIndex);
+                  startIndexes.push(startIndex);
+                  startIndex = 0;
 
                   htmlNode = name ? newNode : htmlNode;
+                } else {
+                  startIndex++;
                 }
               }
 
@@ -236,11 +242,11 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
             }
 
             case CloseTag: {
-              startIndex = startIndexes.pop() + 1;
-
               if (componentPath) {
                 let { depth } = componentPath;
                 componentPath = Path.advance(componentPath, tag_);
+
+                startIndex = startIndexes.pop() + 1;
 
                 let finishedPath = depth ? componentPath.tagPathAt(-1).inner : componentPath;
 
@@ -251,12 +257,16 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
                   let { node } = finishedPath;
                   let fn = node[1];
 
+                  let startIndex_ = startIndex;
+                  let htmlNode_ = htmlNode;
                   iter = untrackComponent(() => {
                     return __render(
-                      () => fn(node),
-                      htmlNode,
-                      htmlNode.children.length,
-                      htmlNode.children.length,
+                      () => {
+                        return fn(node, htmlNode_.children[startIndex_]?.agAST);
+                      },
+                      htmlNode_,
+                      htmlNode_.children.length,
+                      htmlNode_.children.length,
                     );
                   });
 
@@ -265,6 +275,8 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
               } else {
                 let lastResultPath = resultPath;
                 resultPath = Path.advance(resultPath, tag_);
+
+                startIndex = startIndexes.pop() + 1;
 
                 htmlNode.agAST = resultPath.node;
 
