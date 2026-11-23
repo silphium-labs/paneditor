@@ -1,14 +1,7 @@
-import ls from './builtins/ls.js';
-import rm from './builtins/rm.js';
-import rmdir from './builtins/rmdir.js';
-import false_ from './builtins/false.js';
-import tree from './builtins/tree.js';
-
 import './TerminalApp.css';
-import { on, send, signal } from '../../signal.js';
-import { buildOpen, OpenTag, parseTag, printOpen, traverseChildren } from 'agast';
-import { freezeRecord, isDeepRecord } from '@bablr/agast-helpers/object';
-import { buildFlags } from '@bablr/agast-helpers/path';
+import { batch, on, send, signal } from '../../signal.js';
+import { freezeRecord } from '@bablr/agast-helpers/object';
+import * as BList from '@bablr/agast-helpers/b-list';
 import Evaluation from './Evaluation.js';
 
 let applyEvent = (str, evt) => {
@@ -25,129 +18,49 @@ let applyEvent = (str, evt) => {
   return result;
 };
 
-let builtins = Object.assign(Object.create(null), {
-  ls(fs, cwd, args) {
-    let argsIdx = 0;
-
-    let dir;
-    let arg = args[argsIdx];
-    let flagsStr = '';
-    while (arg?.[0] === '-') {
-      flagsStr += arg[1];
-      arg = args[++argsIdx];
-    }
-    dir = arg;
-    let flags = freezeRecord({ all: flagsStr.includes('a') });
-
-    return ls({ fs, cwd, dir, flags });
-  },
-  rm,
-  rmdir,
-  false: false_,
-  tree,
-});
-
-export function* __TerminalApp({ fs, cwd, command, output, returnValue, existingTree, keydown }) {
+export function* __TerminalApp({ fs, cwd, command, evaluations, existingTree, keydown }) {
   // prettier-ignore
   {
     yield '<div { class: "terminal-app" }>';
-    if (existingTree) {
-      debugger
-      for (let value of traverseChildren(existingTree)) {
-        yield value;
+    if (BList.getSize(evaluations())) {
+      for (let { command } of BList.traverse(evaluations())) {
+        yield    '<(Evaluation)>'; yield Evaluation({ command, run: true, fs, cwd }); yield '</>';
       }
     }
-    yield    '<(Evaluation)>'; yield Evaluation({ command, output, returnValue }); yield '</>';
+
+    yield '<(Evaluation)>';
+    yield Evaluation({ command, run: false, fs, cwd });
+    yield '</>';
     yield '</>';
   }
 
   on(keydown, (e) => {
     if (e.code === 'Enter') {
-      let text = command();
-
-      // TODO: this, better
-      let parts = text.split(' ');
-
-      let cmd = parts[0];
-
-      let builtin = builtins[cmd];
-
-      if (cmd === 'cd') {
-        let target = parts[1];
-
-        if (target === '..') {
-          cwd().pop();
-        } else {
-          cwd().push(target);
-        }
-      } else {
-        let args = parts.slice(1);
-        let builtin_ = builtin || (() => false_(['CMD_NOT_FOUND']));
-
+      let command_ = command();
+      batch(() => {
         send(
-          output,
-          (function* () {
-            try {
-              let iter = builtin_(fs(), cwd(), args)[Symbol.iterator]();
-              let step;
-
-              while (!(step = iter.next()).done) {
-                let tag_ = step.value;
-                let tag = parseTag(tag_);
-
-                if (tag.type === OpenTag) {
-                  let { type, name, literalValue, events, isSelfClosing } = tag.value;
-
-                  let newTag = buildOpen(
-                    buildFlags(tag),
-                    type,
-                    'node',
-                    literalValue,
-                    freezeRecord({ name }),
-                    events,
-                    isSelfClosing,
-                  );
-
-                  yield printOpen(newTag);
-                } else {
-                  yield tag_;
-                }
-              }
-
-              let { value } = step;
-
-              if (!isDeepRecord(value)) {
-                send(
-                  returnValue,
-                  freezeRecord({
-                    success: false,
-                    data: freezeRecord({ reason: 'BAD_RETURN_VALUE' }),
-                  }),
-                );
-              } else {
-                send(returnValue, value);
-              }
-            } catch (e) {
-              send(
-                returnValue,
-                freezeRecord({
-                  success: false,
-                  data: freezeRecord({ reason: 'EVAL_ERROR', message: e.message }),
-                }),
-              );
-            }
-          })(),
+          evaluations,
+          BList.push(
+            freezeRecord({
+              fs,
+              cwd,
+              command: () => command_,
+            }),
+            evaluations(),
+          ),
         );
 
-        // return_.classList.add('running');
+        send(command, undefined);
+      });
 
-        // return_.classList.remove('running');
-        // return_.classList.add('done');
+      // return_.classList.add('running');
 
-        // if (!returnValue.success) {
-        //   return_.classList.add('return', 'failed');
-        // }
-      }
+      // return_.classList.remove('running');
+      // return_.classList.add('done');
+
+      // if (!returnValue.success) {
+      //   return_.classList.add('return', 'failed');
+      // }
     } else {
       send(command, applyEvent(command(), e));
     }
@@ -156,10 +69,10 @@ export function* __TerminalApp({ fs, cwd, command, output, returnValue, existing
 
 let TerminalApp = ({ fs, cwd, keydown }) => {
   let command = signal();
-  let output = signal();
-  let returnValue = signal();
+  let evaluations = signal(BList.fromValues([]));
+
   return (_node, existingTree) =>
-    __TerminalApp({ fs, cwd, keydown, command, output, returnValue, existingTree });
+    __TerminalApp({ fs, cwd, keydown, command, evaluations, existingTree });
 };
 
 export default TerminalApp;

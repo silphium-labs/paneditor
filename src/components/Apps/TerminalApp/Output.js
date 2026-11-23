@@ -1,6 +1,14 @@
+import { isValidNode } from 'agast';
+
 export function* __Output({ output }) {
   yield '<div { class: "output" }>';
-  yield* output();
+
+  if (isValidNode(output())) {
+    yield output();
+  } else if (output()) {
+    yield* output();
+  }
+
   yield '</>';
 }
 

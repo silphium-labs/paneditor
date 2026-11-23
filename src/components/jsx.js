@@ -1,6 +1,7 @@
 /* global document */
 import { freezeRecord, isFunction, recordEntries } from '@bablr/agast-helpers/object';
 import { buildFlags, Path } from '@bablr/agast-helpers/path';
+import { continue_, getStreamIterator, wait } from '@bablr/stream-iterator';
 import {
   buildOpenTag,
   CloseTag,
@@ -21,6 +22,8 @@ import {
   send,
   signal,
 } from './signal.js';
+import classNames from 'classnames';
+import { streamFromTree } from 'bablr/enhanceable';
 
 let porcelain = { porcelain: true };
 
@@ -91,6 +94,63 @@ let allModifiers = [
   'SymbolLock',
 ];
 
+function applyTagsToElement(el, tags) {
+  let iter = getStreamIterator(tags);
+
+  let referenceTag = null;
+
+  let step = iter.next();
+
+  while (true) {
+    if (step.done) break;
+
+    let tag = parseTag(step.value);
+
+    if (tag.type === OpenTag) {
+      let node = document.createElement('node');
+      let names = classNames({
+        escape: referenceTag?.value.type === '@',
+        token: tag.value.isToken,
+        trivia: referenceTag?.value.type === '#',
+        intrinsic: referenceTag?.value.flags.intrinsic || false,
+      });
+      if (tag.value.name) {
+        node.setAttribute('name', tag.value.name?.description);
+      }
+      if (tag.value.name) {
+        node.setAttribute('name', tag.value.name?.description);
+      }
+      if (names) {
+        node.setAttribute('class', names);
+      }
+
+      el.append(node);
+      el = node;
+    }
+
+    if (tag.type === LiteralTag || (tag.type === OpenTag && tag.value.literalValue)) {
+      let literalValue = tag.type === LiteralTag ? tag.value : tag.value.literalValue;
+
+      let lines = literalValue.value.split(/\r\n|\r|\n/g);
+
+      let first = true;
+      for (let line of lines) {
+        if (!first) el.append(document.createElement('br'));
+        el.append(document.createTextNode(line));
+        first = false;
+      }
+    }
+
+    if (tag.type === CloseTag || (tag.type === OpenTag && tag.value.isSelfClosing)) {
+      el = el.parentElement;
+    }
+
+    step = iter.next();
+  }
+
+  return step.value;
+}
+
 export function buildEventFacade(e) {
   switch (e.type) {
     case 'keydown':
@@ -118,6 +178,8 @@ export function buildEventFacade(e) {
 }
 
 function __render(component, htmlRoot, startIndex_, endIndex) {
+  let returnSignal = signal();
+
   return createComponentRoot(() => {
     return createComponentEffect(() => {
       let iter = component()[Symbol.iterator]();
@@ -146,6 +208,9 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
                 componentPath = Path.advance(componentPath, tag_);
               } else {
                 resultPath = Path.advance(resultPath, tag_);
+                // TODO add to DOM
+
+                applyTagsToElement(htmlNode, streamFromTree(node));
               }
 
               if (sigilTag.value.isComponent) {
@@ -311,13 +376,18 @@ function __render(component, htmlRoot, startIndex_, endIndex) {
           }
         }
 
-        if (!stack.length) break;
-
         if (!htmlNode.agAST) {
           htmlNode = htmlNode.lastChild;
         }
 
         let finishedNode = resultPath?.node || htmlNode.agAST;
+
+        send(returnSignal, finishedNode);
+
+        returnValue = returnSignal;
+
+        if (!stack.length) break;
+
         ({ iter, resultPath, componentPath } = stack.pop());
         htmlNode = htmlNode.parentElement;
 
